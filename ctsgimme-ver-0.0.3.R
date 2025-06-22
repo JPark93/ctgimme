@@ -344,7 +344,24 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
     memb.id = cbind(unique(dataframe$id), memb)
     while(iterate < 1){
       new.data = subset(dataframe, id %in% subset(memb.id[,1], memb == subgroup))
-      SigThresh = FALSE
+      rdss = list.files(paste0(directory, "/MIs/"), pattern = "\\.RDS$", full.names = TRUE)
+      rds_ids = as.numeric(gsub("MI_|\\.RDS", "", basename(rdss)))
+      valid_ids = unique(new.data$id)
+      matching_indices = which(rds_ids %in% valid_ids)
+      matching_files = rdss[matching_indices][order(rds_ids[matching_indices])]
+      files = NULL
+      for (file in matching_files) {
+        file_id = gsub("MI_|\\.RDS", "", basename(file))
+        files = cbind(files, tryCatch({
+          c(readRDS(file)$"MI.Full")
+        }, error = function(e) {
+          message("Failed to read ", file, ": ", e$message)
+          NULL
+        }))
+      }
+      SigThresh = sum(pchisq(files[which.max(rowMeans(files)),], 1, lower.tail = FALSE) < sg.ks[count,]) / 
+        ncol(files) >= sig.thrsh
+      
       if(SigThresh){
         param.to.add = which.max(rowMeans(files))
         cells = as.numeric(unlist(regmatches(rownames(files)[param.to.add], 
@@ -356,6 +373,15 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
       }else{
         if(max(memb) == 1){
           message("Beginning Individual-Level Search.")
+        }else{
+          message(paste0("Subgroup Search ", subgroup," of ", max(memb)," Complete."))
+          output_path = file.path(paste0(directory, "/Models/Subgroup ", subgroup, "/Subgroup ", subgroup, " Paths.png"))
+          png(filename = output_path, width = 800, height = 800)
+          # Plot the subgroup structure
+          qgraph(t(abs(((G.DRIFT != "0") * 1) - ((DRIFT != "0") * 1))), layout = "circle", labels = varnames, 
+                 edge.width = 5, diag = TRUE, edge.labels = paste0("SG-", subgroup))
+          dev.off()
+          message(paste0("Beginning Individual Model Fitting for Subgroup Members."))
         }
         m = (nvar^2)-sum(DRIFT!="0")
         nks = matrix(NA, m, 1)
