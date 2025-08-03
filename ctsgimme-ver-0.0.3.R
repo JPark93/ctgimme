@@ -626,7 +626,6 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
           })
           stopCluster(cl)
         }
-        next
       }
         message(paste0("Subgroup Search ", subgroup," of ", max(memb)," Complete."))
         if(subgroup.model == TRUE){
