@@ -255,12 +255,37 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
   }
   DRIFT = diag(paste0("A_", 1:nvar, 1:nvar), nvar)
   while(iterate < 1){
+    # rdss = list.files(paste0(directory, "/MIs/"), pattern = "\\.RDS$", full.names = TRUE)
+    # files = NULL
+    # EPCs = NULL
+    # for (file in rdss) {
+    #   file_id = gsub("MI_|\\.RDS", "", basename(file))
+    #   files = cbind(files, tryCatch({
+    #     c(readRDS(file)$"MI.Full")
+    #   }, error = function(e) {
+    #     message("Failed to read ", file, ": ", e$message)
+    #     NULL
+    #   }))
+    #   message(length(c(readRDS(file)$"MI.Full")))
+    #   EPCs = cbind(EPCs, tryCatch({
+    #     c(readRDS(file)$"EPC")
+    #   }, error = function(e) {
+    #     message("Failed to read ", file, ": ", e$message)
+    #     NULL
+    #   }))
+    # }
+    # sig1 = rowSums(pchisq(files, 1, lower.tail = FALSE) <= ks[count,])/ncol(files)
+    # sig2 = rowMeans(abs(EPCs))
+    # sigs = matrix(cbind(sig1, sig2), nrow(files))
     param_names = character(0)
     for (j in 1:nvar) {
       for (i in 1:nvar) {
+        # if (i != j) {
           param_names = c(param_names, sprintf("OUMod.A[%d,%d]", i, j))
+        # }
       }
     }
+    # param_names = sort(param_names)
     rdss = list.files(paste0(directory, "/MIs/"), pattern = "\\.RDS$", full.names = TRUE)
     files = NULL
     EPCs = NULL
@@ -443,6 +468,58 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
     memb = rep(1, length(ids))
     message("Subgrouping Disabled for Testing.")
   }else{
+    # message("Beginning Subgrouping Stage")
+    # rdss1 = list.files(paste0(directory, "/Models/"), pattern = "\\.RDS$", full.names = TRUE)
+    # rdss2 = list.files(paste0(directory, "/MIs/"), pattern = "\\.RDS$", full.names = TRUE)
+    # rdss = c(rdss1, rdss2)
+    # models = list()
+    # for (file in 1:(length(rdss)/2)) {
+    #   file_id1 = gsub("Model_|\\.RDS", "", basename(rdss1[file]))
+    #   file_id2 = gsub("MI_|\\.RDS", "", basename(rdss2[file]))
+    #   temp1 = tryCatch({readRDS(rdss1[file])}, error = function(e) {
+    #     message("Failed to read ", file, ": ", e$message)
+    #     NULL})
+    #   temp2 = tryCatch({readRDS(rdss2[file])}, error = function(e) {
+    #     message("Failed to read ", file, ": ", e$message)
+    #     NULL})$MI.Full
+    #   temp3 = tryCatch({readRDS(rdss2[file])}, error = function(e) {
+    #     message("Failed to read ", file, ": ", e$message)
+    #     NULL})$EPC
+    #   drifts = subset(summary(temp1)$parameters, matrix == 'A')
+    #   cells = matrix(
+    #     as.numeric(unlist(regmatches(drifts$name, gregexpr("\\d+", drifts$name)))),
+    #     ncol = 2, byrow = TRUE
+    #   )
+    #   row_indices = cells[, 1]
+    #   col_indices = cells[, 2]
+    #   MI.cells = matrix(as.numeric(unlist(regmatches(names(c(temp2)), 
+    #                                                  gregexpr("\\d+", names(c(temp2)))))), 
+    #                     ncol = 2, byrow = TRUE)
+    #   MI.cells = cbind(MI.cells, temp2, temp3)
+    #   MI.cells[,3] = ifelse(MI.cells[,3] > qchisq(0.995, 1), MI.cells[,4], 0)
+    #   temp.mat1 = temp.mat2 = matrix(NA, nvar, nvar)
+    #   cells_str = as.character(cells)
+    #   for(i in 1:nrow(cells)){
+    #     temp.mat1[row_indices[i], col_indices[i]] = ifelse(abs(drifts[i,"Estimate"])/
+    #                                                          (drifts[i,"Std.Error"]*qnorm(0.99)) > 
+    #                                                          qnorm(0.99), drifts[i,"Estimate"], 0)
+    #   }
+    #   for(i in 1:nrow(MI.cells)){
+    #     temp.mat2[MI.cells[i,1], MI.cells[i,2]] = MI.cells[i,4]
+    #   }
+    #   models[[file]] = cbind(temp.mat1, temp.mat2)
+    # }
+    # adj.mat = matrix(NA, length(models), length(models))
+    # for(i in 1:length(models)){
+    #   for(j in 1:length(models)){
+    #     # Determine based on sign:
+    #     adj.mat[i,j] = sum(sign(c(models[[i]])) == sign(c(models[[j]])), na.rm = TRUE)
+    #     # Determine based on Distances:
+    #     # adj.mat[i,j] = 1/(1 + norm(models[[i]] - models[[j]], type = "F"))
+    #     # Determine based on magnitude:
+    #     # adj.mat[i,j] = 
+    #   }
+    # }
     message("Beginning Subgrouping Stage")
     param_names = character(0)
     for (j in 1:nvar) {
@@ -546,9 +623,11 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
     memb.id = cbind(unique(dataframe$id), memb)
     while(iterate < 1){
       new.data = subset(dataframe, id %in% subset(memb.id[,1], memb == subgroup))
+      # param_names = sort(param_names)
       valid_ids = unique(new.data$id)
       all_rdss = list.files(paste0(directory, "/MIs/"), pattern = "\\.RDS$", full.names = TRUE)
       rdss = all_rdss[gsub("MI_|\\.RDS", "", basename(all_rdss)) %in% valid_ids]
+      # rdss = list.files(paste0(directory, "/MIs/"), pattern = "\\.RDS$", full.names = TRUE)
       files = NULL
       EPCs = NULL
       for (file in rdss) {
@@ -670,11 +749,17 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
             temp = rbind(temp, rep(NA, ncol(temp)))
             subgroup.data = rbind(subgroup.data, temp)
           }
+          ###---###---###---###---###---###---###---###---
+          ## ONLY WORKS FOR OMID DATA###---###---###---###
+          ###---###---###---###---###---###---###---###---
+          # subgroup.data$time = 0:(nrow(subgroup.data)-1)
           nsubjs = nrow(subgroup.data)
           days = floor((nsubjs - 1)/5)
           offsets = seq(0, by = 1/8, length.out = 5)
           subgroup.data$Time = as.vector(sapply(0:days, function(d) d + offsets))[1:nsubjs]
-  
+          ###---###---###---###---###---###---###---###---
+          ## ONLY WORKS FOR OMID DATA###---###---###---###
+          ###---###---###---###---###---###---###---###---          
           message(paste0("Fitting Parameterized Model of Subgroup ", subgroup))
           amat = mxMatrix('Full', nvar, nvar, DRIFT != "0", 
                           name = 'A')
@@ -701,11 +786,14 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
           for(i in 1:nrow(sum.fit$parameters)){
             effects[sum.fit$parameters$col[i],sum.fit$parameters$row[i]] = sum.fit$parameters$Estimate[i]
           }
+          # Determine significance stars
           sig = ifelse(abs(sum.fit$parameters$Estimate) > qnorm(0.975) * sum.fit$parameters$Std.Error, "*", "ns")
           
+          # Format edge labels
           vals = cbind(round(sum.fit$parameters$Estimate, 2), sig)
           edge_labs = paste0(vals[, 2], " (", vals[, 1], ")")
           
+          # Logical masks
           shared = G.DRIFT != "0" & DRIFT != "0"
           group_only = G.DRIFT == "0" & DRIFT != "0"
           colors = character(length = length(DRIFT))
@@ -715,7 +803,11 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
           colors[group_only & effects == 0] = "black"
           colors[DRIFT == "0"] = "black"
           colors = c(colors)
+          
+          # Output path
           output_path = file.path(directory, paste0("Models/Subgroup ", subgroup, "/Subgroup ", subgroup, " Params.png"))
+          
+          # Plot
           png(filename = output_path, width = 800, height = 800)
           qgraph(effects, layout = "circle", labels = varnames, 
                  edge.width = 1, diag = TRUE, edge.labels = edge_labs,
@@ -726,6 +818,7 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
             delt = (round(expm(effects * ints), 3))
             output_path = file.path(paste0(directory, "/Models/Subgroup ", subgroup, "/Subgroup ", subgroup, " Delta_t = ", ints,".png"))
             png(filename = output_path, width = 800, height = 800)
+            # Plot the subgroup structure
             qgraph(delt, layout = "circle", labels = varnames, fade = TRUE,
                    edge.width = 1, diag = TRUE, edge.labels = delt, maximum = 1.00,
                    theme = "colorblind", title = paste0("Subgroup ", subgroup, "; Delta_t = ", ints))
@@ -800,6 +893,25 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
               }
             }
             MIs = JPmx(fit, matrices = "A")
+          #   if(is.null(MIs) | is.null(MIs$MI.Full)){optimization = 1; fit = fit2}
+          #   if(abs(MIs$MI.Full)[which.max(abs(MIs$MI.Full))] >= qchisq(1-nks[count,], df = 1)){
+          #     cells = as.numeric(unlist(regmatches(names(which.max(MIs$MI.Full)),
+          #                                          gregexpr("\\d+", names(which.max(MIs$MI.Full))))))
+          #     
+          #     osc$A$free[cells[1], cells[2]] = TRUE
+          #     osc$A$labels[cells[1], cells[2]] = paste0("A_", cells[1], ",", cells[2])
+          #     message(paste0("Adding drift parameter A[", cells[1], ",", cells[2],"]"))
+          #     MIs = NULL
+          #     count = count + 1
+          #     if(sum(osc$A$free) == nvar^2){
+          #       optimization = 1
+          #     }
+          #   }else{
+          #     optimization = 1
+          #   }
+          # }
+            
+            
             if (is.null(MIs) || is.null(MIs$MI.Full)) {
               optimization = 1
               fit = fit2
@@ -902,6 +1014,8 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
         packs = list('ctsem', 'ctsemOMX', 'dynr', 'OpenMx', 'qgraph')
         invisible(lapply(packs, require, character.only = T))
       })
+      # qmat = mxMatrix('Diag', nvar, nvar, FALSE, PE.var, name='Q')
+      # rmat = mxMatrix('Diag', nvar, nvar, FALSE, ME.var, name='R')
       parLapply(cl, valid_ids, function(i) {
         subset_dat = subset(new.data, id == i)
         amat = mxMatrix("Full", nvar, nvar,
