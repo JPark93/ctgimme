@@ -189,6 +189,7 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
   library(OpenMx)
   library(igraph)
   library(qgraph)
+  library(gtools)
   cl = makeCluster(cores, type = "PSOCK")
   clusterExport(cl, c("dataframe", "JPmx",
                       "varnames", "id", "time", "directory",
@@ -332,7 +333,7 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
           cells_str = as.character(cells)
           for(i in 1:nrow(cells)){
             temp.mat1[row_indices[i], col_indices[i]] = ifelse(abs(drifts[i,"Estimate"])/
-                                                                 (drifts[i,"Std.Error"]*qnorm(0.95)) > 
+                                                                 (drifts[i,"Std.Error"]) > 
                                                                  qnorm(0.95), TRUE, FALSE)
           }
           models[[prn]] = cbind(temp.mat1)
@@ -468,127 +469,43 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
     memb = rep(1, length(ids))
     message("Subgrouping Disabled for Testing.")
   }else{
-    # message("Beginning Subgrouping Stage")
-    # rdss1 = list.files(paste0(directory, "/Models/"), pattern = "\\.RDS$", full.names = TRUE)
-    # rdss2 = list.files(paste0(directory, "/MIs/"), pattern = "\\.RDS$", full.names = TRUE)
-    # rdss = c(rdss1, rdss2)
-    # models = list()
-    # for (file in 1:(length(rdss)/2)) {
-    #   file_id1 = gsub("Model_|\\.RDS", "", basename(rdss1[file]))
-    #   file_id2 = gsub("MI_|\\.RDS", "", basename(rdss2[file]))
-    #   temp1 = tryCatch({readRDS(rdss1[file])}, error = function(e) {
-    #     message("Failed to read ", file, ": ", e$message)
-    #     NULL})
-    #   temp2 = tryCatch({readRDS(rdss2[file])}, error = function(e) {
-    #     message("Failed to read ", file, ": ", e$message)
-    #     NULL})$MI.Full
-    #   temp3 = tryCatch({readRDS(rdss2[file])}, error = function(e) {
-    #     message("Failed to read ", file, ": ", e$message)
-    #     NULL})$EPC
-    #   drifts = subset(summary(temp1)$parameters, matrix == 'A')
-    #   cells = matrix(
-    #     as.numeric(unlist(regmatches(drifts$name, gregexpr("\\d+", drifts$name)))),
-    #     ncol = 2, byrow = TRUE
-    #   )
-    #   row_indices = cells[, 1]
-    #   col_indices = cells[, 2]
-    #   MI.cells = matrix(as.numeric(unlist(regmatches(names(c(temp2)), 
-    #                                                  gregexpr("\\d+", names(c(temp2)))))), 
-    #                     ncol = 2, byrow = TRUE)
-    #   MI.cells = cbind(MI.cells, temp2, temp3)
-    #   MI.cells[,3] = ifelse(MI.cells[,3] > qchisq(0.995, 1), MI.cells[,4], 0)
-    #   temp.mat1 = temp.mat2 = matrix(NA, nvar, nvar)
-    #   cells_str = as.character(cells)
-    #   for(i in 1:nrow(cells)){
-    #     temp.mat1[row_indices[i], col_indices[i]] = ifelse(abs(drifts[i,"Estimate"])/
-    #                                                          (drifts[i,"Std.Error"]*qnorm(0.99)) > 
-    #                                                          qnorm(0.99), drifts[i,"Estimate"], 0)
-    #   }
-    #   for(i in 1:nrow(MI.cells)){
-    #     temp.mat2[MI.cells[i,1], MI.cells[i,2]] = MI.cells[i,4]
-    #   }
-    #   models[[file]] = cbind(temp.mat1, temp.mat2)
-    # }
-    # adj.mat = matrix(NA, length(models), length(models))
-    # for(i in 1:length(models)){
-    #   for(j in 1:length(models)){
-    #     # Determine based on sign:
-    #     adj.mat[i,j] = sum(sign(c(models[[i]])) == sign(c(models[[j]])), na.rm = TRUE)
-    #     # Determine based on Distances:
-    #     # adj.mat[i,j] = 1/(1 + norm(models[[i]] - models[[j]], type = "F"))
-    #     # Determine based on magnitude:
-    #     # adj.mat[i,j] = 
-    #   }
-    # }
     message("Beginning Subgrouping Stage")
-    param_names = character(0)
-    for (j in 1:nvar) {
-      for (i in 1:nvar) {
-          param_names = c(param_names, sprintf("OUMod.A[%d,%d]", i, j))
-      }
-    }
-    # param_names = sort(param_names)
-    safe_read_vector = function(file, element, param_names) {
-      out = rep(NA_real_, length(param_names))
-      names(out) = param_names
-      vec = tryCatch({ c(readRDS(file)[[element]]) }, error = function(e) {
-        message("Failed to read ", element, " from ", file, ": ", e$message)
-        return(NULL)
-      })
-      if (!is.null(vec)) {
-        intersect_names = intersect(names(vec), param_names)
-        out[intersect_names] = vec[intersect_names]
-      }
-      return(out)
-    }
-    rdss1 = list.files(paste0(directory, "/Models/"), pattern = "\\.RDS$", full.names = TRUE)
-    rdss2 = list.files(paste0(directory, "/MIs/"), pattern = "\\.RDS$", full.names = TRUE)
+    rdss1 = mixedsort(list.files(paste0(directory, "/Models/"), pattern = "\\.RDS$", full.names = TRUE))
+    rdss2 = mixedsort(list.files(paste0(directory, "/MIs/"), pattern = "\\.RDS$", full.names = TRUE))
     models = list()
-    for (file in 1:length(rdss1)) {
-      file_id = gsub("Model_|\\.RDS", "", basename(rdss1[file]))
-      model_obj = tryCatch({ readRDS(rdss1[file]) }, error = function(e) {
-        message("Failed to read ", rdss1[file], ": ", e$message)
-        return(NULL)
-      })
-      if (is.null(model_obj)) next
-      mi_vec = abs(safe_read_vector(rdss2[file], "MI.Full", param_names))
-      epc_vec = safe_read_vector(rdss2[file], "EPC", param_names)
-      drift_table = subset(summary(model_obj)$parameters, matrix == "A")
-      drift_cells = matrix(as.numeric(unlist(regmatches(drift_table$name, gregexpr("\\d+", drift_table$name)))), 
-                           ncol = 2, byrow = TRUE)
-      temp.mat1 = matrix(NA, nvar, nvar)
-      for (i in 1:nrow(drift_cells)) {
-        r = drift_cells[i, 1]
-        c = drift_cells[i, 2]
-        est = drift_table$Estimate[i]
-        se = drift_table$Std.Error[i]
-        zthr = qnorm(0.975)
-        temp.mat1[r, c] = ifelse(abs(est / (se * zthr)) > zthr, est, 0)
+    for (file in seq_along(rdss1)) {
+      temp1 = tryCatch(readRDS(rdss1[file]), error = function(e) NULL)
+      temp2 = tryCatch(readRDS(rdss2[file]), error = function(e) NULL)
+      if (is.null(temp1) || is.null(temp2)) next
+      drifts = subset(summary(temp1)$parameters, matrix == 'A')
+      cells = matrix(as.numeric(unlist(regmatches(drifts$name, gregexpr("\\d+", drifts$name)))), ncol = 2, byrow = TRUE)
+      
+      MI_vals = temp2$MI.Full
+      EPC_vals = temp2$EPC
+      
+      MI.cells = matrix(as.numeric(unlist(regmatches(names(MI_vals), gregexpr("\\d+", names(MI_vals))))), ncol = 2, byrow = TRUE)
+      MI.cells = cbind(MI.cells, MI_vals, EPC_vals)
+      MI.cells[, 3] = ifelse(MI.cells[, 3] > qchisq(0.95, 1), MI.cells[, 4], 0)
+      
+      temp.mat1 = temp.mat2 = matrix(NA, nvar, nvar)
+      for (i in 1:nrow(cells)) {
+        val = drifts[i, "Estimate"]
+        se = drifts[i, "Std.Error"]
+        temp.mat1[cells[i, 1], cells[i, 2]] = ifelse(abs(val) / se > qnorm(0.975), val, 0)
+      }
+      for (i in 1:nrow(MI.cells)) {
+        temp.mat2[MI.cells[i, 1], MI.cells[i, 2]] = MI.cells[i, 3]
       }
       
-      temp.mat2 = matrix(NA, nvar, nvar)
-      for (name in names(mi_vec)) {
-        indices = as.numeric(unlist(regmatches(name, gregexpr("\\d+", name))))
-        if (length(indices) == 2) {
-          r = indices[1]
-          c = indices[2]
-          mi_val = mi_vec[name]
-          epc_val = epc_vec[name]
-          temp.mat2[r, c] = ifelse(!is.na(mi_val) && mi_val > qchisq(0.99, 1), epc_val, 0)
-        }
-      }
-      
-      models[[file_id]] = cbind(temp.mat1, temp.mat2)
+      models[[length(models) + 1]] = cbind(temp.mat1, temp.mat2)
     }
     
     adj.mat = matrix(NA, length(models), length(models))
-    
     for (i in 1:length(models)) {
       for (j in 1:length(models)) {
         adj.mat[i, j] = sum(sign(c(models[[i]])) == sign(c(models[[j]])), na.rm = TRUE)
       }
     }
-    
     adj.mat = adj.mat - min(adj.mat)
     diag(adj.mat) = 0
     g = graph_from_adjacency_matrix(adj.mat, mode = "undirected", weighted = TRUE, diag = FALSE)
@@ -623,11 +540,9 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
     memb.id = cbind(unique(dataframe$id), memb)
     while(iterate < 1){
       new.data = subset(dataframe, id %in% subset(memb.id[,1], memb == subgroup))
-      # param_names = sort(param_names)
       valid_ids = unique(new.data$id)
       all_rdss = list.files(paste0(directory, "/MIs/"), pattern = "\\.RDS$", full.names = TRUE)
       rdss = all_rdss[gsub("MI_|\\.RDS", "", basename(all_rdss)) %in% valid_ids]
-      # rdss = list.files(paste0(directory, "/MIs/"), pattern = "\\.RDS$", full.names = TRUE)
       files = NULL
       EPCs = NULL
       for (file in rdss) {
@@ -673,7 +588,7 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
             cells_str = as.character(cells)
             for(pp in 1:nrow(cells)){
               temp.mat1[row_indices[pp], col_indices[pp]] = ifelse(abs(drifts[pp,"Estimate"])/
-                                                                   (drifts[pp,"Std.Error"]*qnorm(0.975)) > 
+                                                                   (drifts[pp,"Std.Error"]) > 
                                                                    qnorm(0.975), TRUE, FALSE)
             }
             models[[prn]] = cbind(temp.mat1)
@@ -960,7 +875,7 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
               message("No unprotected parameters left to prune.")
               break
             }
-            se = prunable[, 6] * qnorm(0.975)
+            se = prunable[, 6]
             z.scores = abs(prunable[, 5]) / se
             min_z_index = which.min(z.scores)
             if(length(z.scores[min_z_index]) == 0){
