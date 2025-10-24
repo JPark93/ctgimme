@@ -22,7 +22,7 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
     gmodel = omxSetParameters(model, free = FALSE, labels = param.names)
     mi.r = NULL
     mi.f = NULL
-    EPCs = NULL
+    epc.f = NULL
     a.names = NULL
     new.models = list()
     for (amat in matrices) {
@@ -30,7 +30,7 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
       freemat = matObj$free
       sym.sel = upper.tri(freemat, diag = TRUE)
       notSymDiag = !(is(gmodel[[amat]])[1] %in% c("DiagMatrix", 
-                                                   "SymmMatrix"))
+                                                  "SymmMatrix"))
       for (i in 1:length(freemat)) {
         if (freemat[i] == FALSE && (notSymDiag || sym.sel[i] == 
                                     TRUE)) {
@@ -38,9 +38,9 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
           plusOneParamModel = model
           if (length(tmpLab) > 0 && !is.na(tmpLab)) {
             gmodel = omxSetParameters(gmodel, labels = tmpLab, 
-                                       free = TRUE)
+                                      free = TRUE)
             plusOneParamModel = omxSetParameters(plusOneParamModel, 
-                                                  labels = tmpLab, free = TRUE)
+                                                 labels = tmpLab, free = TRUE)
           }
           else {
             gmodel[[amat]]$free[i] = TRUE
@@ -49,29 +49,29 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
           if (is(gmodel[[amat]])[1] %in% c("ZeroMatrix")) {
             cop = gmodel[[amat]]
             newSingleParamMat = mxMatrix("Full", nrow = nrow(cop), 
-                                          ncol = ncol(cop), values = cop$values, free = cop$free, 
-                                          labels = cop$labels, name = cop$name, lbound = cop$lbound, 
-                                          ubound = cop$ubound, dimnames = dimnames(cop))
+                                         ncol = ncol(cop), values = cop$values, free = cop$free, 
+                                         labels = cop$labels, name = cop$name, lbound = cop$lbound, 
+                                         ubound = cop$ubound, dimnames = dimnames(cop))
             bop = plusOneParamModel[[amat]]
             newPlusOneParamMat = mxMatrix("Full", nrow = nrow(bop), 
-                                           ncol = ncol(bop), values = bop$values, free = bop$free, 
-                                           labels = bop$labels, name = bop$name, lbound = bop$lbound, 
-                                           ubound = bop$ubound, dimnames = dimnames(bop))
+                                          ncol = ncol(bop), values = bop$values, free = bop$free, 
+                                          labels = bop$labels, name = bop$name, lbound = bop$lbound, 
+                                          ubound = bop$ubound, dimnames = dimnames(bop))
           }
           else if (is(gmodel[[amat]])[1] %in% c("DiagMatrix", 
                                                 "SymmMatrix")) {
             cop = gmodel[[amat]]
             newSingleParamMat = mxMatrix("Symm", nrow = nrow(cop), 
-                                          ncol = ncol(cop), values = cop$values, free = (cop$free | 
-                                                                                           t(cop$free)), labels = cop$labels, name = cop$name, 
-                                          lbound = cop$lbound, ubound = cop$ubound, 
-                                          dimnames = dimnames(cop))
+                                         ncol = ncol(cop), values = cop$values, free = (cop$free | 
+                                                                                          t(cop$free)), labels = cop$labels, name = cop$name, 
+                                         lbound = cop$lbound, ubound = cop$ubound, 
+                                         dimnames = dimnames(cop))
             bop = plusOneParamModel[[amat]]
             newPlusOneParamMat = mxMatrix("Symm", nrow = nrow(bop), 
-                                           ncol = ncol(bop), values = bop$values, free = (bop$free | 
-                                                                                            t(bop$free)), labels = bop$labels, name = bop$name, 
-                                           lbound = bop$lbound, ubound = bop$ubound, 
-                                           dimnames = dimnames(bop))
+                                          ncol = ncol(bop), values = bop$values, free = (bop$free | 
+                                                                                           t(bop$free)), labels = bop$labels, name = bop$name, 
+                                          lbound = bop$lbound, ubound = bop$ubound, 
+                                          dimnames = dimnames(bop))
           }
           else {
             newSingleParamMat = gmodel[[amat]]
@@ -80,61 +80,115 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
           gmodel[[amat]] = newSingleParamMat
           plusOneParamModel[[amat]] = newPlusOneParamMat
           custom.compute = mxComputeSequence(list(mxComputeNumericDeriv(checkGradient = FALSE), 
-                                                   mxComputeReportDeriv()))
+                                                  mxComputeReportDeriv()))
           gmodel = mxModel(gmodel, custom.compute)
           grun = try(mxRun(gmodel, silent = TRUE, suppressWarnings = FALSE, 
-                            unsafe = TRUE))
-          nings = TRUE
+                           unsafe = TRUE))
           if (is(grun, "try-error")) {
             gmodel = omxSetParameters(gmodel, labels = names(omxGetParameters(gmodel)), 
-                                       free = FALSE)
+                                      free = FALSE)
             next
           }
           grad = grun$output$gradient
           hess = grun$output$hessian
           modind = 0.5 * grad^2/hess
+          # if (full == TRUE) {
+          #   custom.compute.smart = mxComputeSequence(list(mxComputeNumericDeriv(knownHessian = model$output$hessian, 
+          #                                                                       checkGradient = FALSE), mxComputeReportDeriv()))
+          #   plusOneParamRun = mxRun(mxModel(plusOneParamModel, 
+          #                                   custom.compute.smart), silent = TRUE, suppressWarnings = FALSE, 
+          #                           unsafe = TRUE)
+          #   grad.full = plusOneParamRun$output$gradient
+          #   grad.full[is.na(grad.full)] = 0
+          #   
+          #   tol = max(1e-8, 1e-6 * max(abs(grad.full), na.rm = TRUE))
+          #   nz  = which(abs(grad.full) > tol)
+          #   
+          #   hess.full = plusOneParamRun$output$hessian
+          #   modind.full = 0.5 * t(matrix(grad.full)) %*% 
+          #     solve(hess.full) %*% matrix(grad.full)
+          #   if (sum(grad.full != 0) == 1) {
+          #     exppar.full = -modind.full/grad.full[grad.full != 0]
+          #   }
+          #   else {
+          #     stop("Something strange in the neighborhood.\nFound a one-parameter model with more than one parameter.\nPost this to the OpenMx forums.")
+          #   }
+          # }
+          # else {
+          #   modind.full = NULL
+          #   exppar.full = NULL
+          # }
+          # --- replace your current full==TRUE block with this ---
           if (full == TRUE) {
-            custom.compute.smart = mxComputeSequence(list(mxComputeNumericDeriv(knownHessian = model$output$hessian, 
-                                                                                 checkGradient = FALSE), mxComputeReportDeriv()))
-            plusOneParamRun = mxRun(mxModel(plusOneParamModel, 
-                                             custom.compute.smart), silent = TRUE, suppressWarnings = FALSE, 
-                                     unsafe = TRUE)
+            custom.compute.smart = mxComputeSequence(list(
+              mxComputeNumericDeriv(knownHessian = model$output$hessian, checkGradient = FALSE),
+              mxComputeReportDeriv()
+            ))
+            plusOneParamRun = mxRun(mxModel(plusOneParamModel, custom.compute.smart),
+                                    silent = TRUE, suppressWarnings = FALSE, unsafe = TRUE)
+            
             grad.full = plusOneParamRun$output$gradient
-            grad.full[is.na(grad.full)] = 0
+            if (is.null(names(grad.full))) {
+              # fall back to parameter names in the plus-one model
+              names(grad.full) = names(omxGetParameters(plusOneParamRun))
+            }
+            grad.full[!is.finite(grad.full)] = 0
+            
             hess.full = plusOneParamRun$output$hessian
-            modind.full = 0.5 * t(matrix(grad.full)) %*%
-              solve(hess.full) %*% matrix(grad.full)
-            EPC = modind.full/grad.full[grad.full!=0]
-          }
-          else {
+            modind.full = as.numeric(0.5 * t(as.matrix(grad.full)) %*% solve(hess.full) %*% as.matrix(grad.full))
+            
+            # name of the single freed parameter in the single-parameter run
+            n.names = names(omxGetParameters(grun))
+            
+            # pick the gradient entry for that parameter (with tolerance fallback)
+            tol = max(1e-8, 1e-6 * max(abs(grad.full), na.rm = TRUE))
+            idx = match(n.names, names(grad.full))
+            if (is.na(idx)) {
+              nz = which(abs(grad.full) > tol)
+              idx = if (length(nz)) nz[ which.max(abs(grad.full[nz])) ] else NA_integer_
+            }
+            
+            if (is.na(idx) || abs(grad.full[idx]) <= tol) {
+              exppar.full = NA_real_
+            } else {
+              exppar.full = -modind.full / grad.full[idx]
+            }
+          } else {
             modind.full = NULL
+            exppar.full = NULL
           }
+          
           n.names = names(omxGetParameters(grun))
           if (length(modind) > 0) {
             a.names = c(a.names, n.names)
             mi.r = c(mi.r, modind)
             mi.f = c(mi.f, modind.full)
-            EPCs = c(EPCs, EPC)
+            epc.f = c(epc.f, exppar.full)
             new.models = c(new.models, plusOneParamModel)
           }
           gmodel = omxSetParameters(gmodel, labels = names(omxGetParameters(gmodel)), 
-                                     free = FALSE)
+                                    free = FALSE)
         }
       }
       names(mi.r) = a.names
       if (full == TRUE) {
         names(mi.f) = a.names
-        names(EPCs) = a.names
+        names(epc.f) = a.names
       }
       names(new.models) = a.names
     }
     if (length(model$submodels) > 0) {
       for (asubmodel in names(model$submodels)) {
-        ret = c(ret, JPmx(asubmodel))
+        ret = c(ret, mxMI(asubmodel))
       }
     }
-    # message(paste0("The N is ", N))
-    return(list(MI = mi.r, MI.Full = mi.f, plusOneParamModels = new.models, EPC = -EPCs))
+    if (is.null(mi.f)) 
+      mi.f = rep(NA, length(mi.r))
+    if (is.null(epc.f)) 
+      epc.f = rep(NA, length(mi.r))
+    retList = list2DF(list(MI = mi.r, MI.Full = mi.f, plusOneParamModels = new.models, 
+                           EPC = epc.f), nrow = length(mi.r))
+    return(retList)
   }
   safe_read_vector = function(file, element, param_names) {
     out = rep(NA_real_, length(param_names))
@@ -204,7 +258,8 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
   ###---###---###---###---###---###---###
   parLapply(cl, ids, function(i) {
     DRIFT = diag(paste0("A_", 1:nvar, ",", 1:nvar), nvar)
-    subset_dat = subset(dataframe, id == i)
+    # subset_dat = subset(dataframe, id == i)
+    subset_dat = dataframe[dataframe[[id]] == i, , drop = FALSE]
     # subset_dat[,varnames] = scale(subset_dat[,varnames])
     amat = mxMatrix("Full", nvar, nvar,
                      free   = DRIFT != "0",
@@ -303,8 +358,10 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
     rownames(sigs) = rownames(files)
     SigThresh = sig1[which.max(sig1)] >= sig.thrsh
     if(SigThresh){
-      param.to.add = which(names(which.max(sigs[which(sigs[,1] == max(sigs[,1])),2])) == rownames(sigs))
-      cells = as.numeric(unlist(regmatches(rownames(files)[param.to.add], 
+      # param.to.add = which(names(which.max(sigs[which(sigs[,1] == max(sigs[,1])),2])) == rownames(sigs))
+      top = which(sigs[,1] == max(sigs[,1]))
+      param.to.add = top[which.max(sigs[top, 2])]
+      cells = as.numeric(unlist(regmatches(rownames(files)[param.to.add],
                                            gregexpr("\\d+", rownames(files)[param.to.add]))))
       DRIFT[cells[1], cells[2]] = paste0("A_", cells[1], ",", cells[2])
       message(paste0("Adding drift parameter A[", cells[1], ",", cells[2],"]"))
@@ -363,7 +420,8 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
           invisible(lapply(packs, require, character.only = T))
         })
         parLapply(cl, ids, function(i) {
-          subset_dat = subset(dataframe, id == i)
+          # subset_dat = subset(dataframe, id == i)
+          subset_dat = dataframe[dataframe[[id]] == i, , drop = FALSE]
           subset_dat[,varnames] = scale(subset_dat[,varnames])
           amat = mxMatrix("Full", nvar, nvar,
                           free   = DRIFT != "0",
@@ -425,7 +483,8 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
       invisible(lapply(packs, require, character.only = T))
     })
     parLapply(cl, ids, function(i) {
-      subset_dat = subset(dataframe, id == i)
+      # subset_dat = subset(dataframe, id == i)
+      subset_dat = dataframe[dataframe[[id]] == i, , drop = FALSE]
       subset_dat[,varnames] = scale(subset_dat[,varnames])
       amat = mxMatrix("Full", nvar, nvar,
                        free   = DRIFT != "0",
@@ -490,7 +549,7 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
       
       MI.cells = matrix(as.numeric(unlist(regmatches(names(MI_vals), gregexpr("\\d+", names(MI_vals))))), ncol = 2, byrow = TRUE)
       MI.cells = cbind(MI.cells, MI_vals, EPC_vals)
-      MI.cells[, 3] = ifelse(MI.cells[, 3] > qchisq(0.95, 1), MI.cells[, 4], 0)
+      MI.cells[, 3] = ifelse(MI.cells[, 3] > qchisq(0.975, 1), MI.cells[, 4], 0)
       
       temp.mat1 = temp.mat2 = matrix(NA, nvar, nvar)
       for (i in 1:nrow(cells)) {
@@ -564,7 +623,9 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
       rownames(sigs) = rownames(files)
       SigThresh = sig1[which.max(sig1)] >= sub.sig.thrsh
       if(SigThresh){
-        param.to.add = which(names(which.max(sigs[which(sigs[,1] == max(sigs[,1])),2])) == rownames(sigs))
+        # param.to.add = which(names(which.max(sigs[which(sigs[,1] == max(sigs[,1])),2])) == rownames(sigs))
+        top = which(sigs[,1] == max(sigs[,1]))
+        param.to.add = top[ which.max(sigs[top, 2])]
         cells = as.numeric(unlist(regmatches(rownames(files)[param.to.add], 
                                              gregexpr("\\d+", rownames(files)[param.to.add]))))
         DRIFT[cells[1], cells[2]] = paste0("A_", cells[1], ",", cells[2])
@@ -620,7 +681,8 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
             invisible(lapply(packs, require, character.only = T))
           })
           parLapply(cl, valid_ids, function(i) {
-            subset_dat = subset(new.data, id == i)
+            # subset_dat = subset(new.data, id == i)
+            subset_dat = new.data[new.data[[id]] == i, , drop = FALSE]
             amat = mxMatrix("Full", nvar, nvar,
                             free   = DRIFT != "0",
                             name   = "A")
@@ -778,7 +840,9 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
         })
         parLapply(cl, valid_ids, function(i) {
           DRIFT = SG.DRIFT
-          subset_dat = subset(new.data, id == i)
+          # subset_dat = subset(new.data, id == i)
+          subset_dat = new.data[new.data[[id]] == i, , drop = FALSE]
+          
           amat = mxMatrix("Full", nvar, nvar,
                            free   = DRIFT != "0",
                            name   = "A")
@@ -889,7 +953,7 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
               break
               prune = 1
             }
-            if (z.scores[min_z_index] < qnorm(0.975)) {
+            if (z.scores[min_z_index] < qnorm(0.99)) {
               this = prunable[min_z_index,]
               cells = matrix(c(this$row, this$col), 1, 2)
               osc$A$free[cells[1,1], cells[1,2]] = FALSE
@@ -938,7 +1002,8 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
       # qmat = mxMatrix('Diag', nvar, nvar, FALSE, PE.var, name='Q')
       # rmat = mxMatrix('Diag', nvar, nvar, FALSE, ME.var, name='R')
       parLapply(cl, valid_ids, function(i) {
-        subset_dat = subset(new.data, id == i)
+        # subset_dat = subset(new.data, id == i)
+        subset_dat = new.data[new.data[[id]] == i, , drop = FALSE]
         amat = mxMatrix("Full", nvar, nvar,
                          free   = DRIFT != "0",
                          name   = "A")
