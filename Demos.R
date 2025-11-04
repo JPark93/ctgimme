@@ -41,7 +41,7 @@ example = ctsgimme(varnames = paste0("y", 1:5),
                    time = "Time",
                    ME.var = diag(1e-5, 5), 
                    PE.var = diag(1.00, 5),
-                   cores = 25, 
+                   cores = 10, 
                    directory = "./ExampleResults/",
                    ben.hoch = TRUE, 
                    Galpha = 0.05, 
@@ -50,7 +50,7 @@ example = ctsgimme(varnames = paste0("y", 1:5),
 
 # Compare to True Values
 par(mfrow = c(1,1))
-qgraph(Trues[[3]], diag = TRUE,
+qgraph(t(Trues[[5]]), diag = TRUE,
        theme = "colorblind",
        layout = "circle",
-       edge.labels = round(Trues[[3]], 2))
+       edge.labels = round(t(Trues[[5]]), 2))
