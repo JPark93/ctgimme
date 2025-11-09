@@ -311,37 +311,12 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
   }
   DRIFT = diag(paste0("A_", 1:nvar, 1:nvar), nvar)
   while(iterate < 1){
-    # rdss = list.files(paste0(directory, "/MIs/"), pattern = "\\.RDS$", full.names = TRUE)
-    # files = NULL
-    # EPCs = NULL
-    # for (file in rdss) {
-    #   file_id = gsub("MI_|\\.RDS", "", basename(file))
-    #   files = cbind(files, tryCatch({
-    #     c(readRDS(file)$"MI.Full")
-    #   }, error = function(e) {
-    #     message("Failed to read ", file, ": ", e$message)
-    #     NULL
-    #   }))
-    #   message(length(c(readRDS(file)$"MI.Full")))
-    #   EPCs = cbind(EPCs, tryCatch({
-    #     c(readRDS(file)$"EPC")
-    #   }, error = function(e) {
-    #     message("Failed to read ", file, ": ", e$message)
-    #     NULL
-    #   }))
-    # }
-    # sig1 = rowSums(pchisq(files, 1, lower.tail = FALSE) <= ks[count,])/ncol(files)
-    # sig2 = rowMeans(abs(EPCs))
-    # sigs = matrix(cbind(sig1, sig2), nrow(files))
     param_names = character(0)
     for (j in 1:nvar) {
       for (i in 1:nvar) {
-        # if (i != j) {
-          param_names = c(param_names, sprintf("OUMod.A[%d,%d]", i, j))
-        # }
+        param_names = c(param_names, sprintf("OUMod.A[%d,%d]", i, j))
       }
     }
-    # param_names = sort(param_names)
     rdss = list.files(paste0(directory, "/MIs/"), pattern = "\\.RDS$", full.names = TRUE)
     files = NULL
     EPCs = NULL
@@ -352,15 +327,17 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
       files = cbind(files, mi_full)
       EPCs = cbind(EPCs, epc)
     }
-    sig1 = rowSums(pchisq(files, 1, lower.tail = FALSE) <= ks[count, ], na.rm = TRUE) / ncol(files)
-    sig2 = rowMeans(abs(EPCs), na.rm = TRUE)
-    sigs = matrix(cbind(sig1, sig2), nrow(files))
-    rownames(sigs) = rownames(files)
-    SigThresh = sig1[which.max(sig1)] >= sig.thrsh
-    if(SigThresh){
-      # param.to.add = which(names(which.max(sigs[which(sigs[,1] == max(sigs[,1])),2])) == rownames(sigs))
-      top = which(sigs[,1] == max(sigs[,1]))
-      param.to.add = top[which.max(sigs[top, 2])]
+    z.scores = sqrt(files) * sign(EPCs)
+    sig1 = rowSums(pnorm(q = abs(z.scores), lower.tail = FALSE) <= ks[count,], na.rm = TRUE) / ncol(files)
+    if(any(sig1 > sig.thrsh)){
+      nzs = z.scores[names(which(sig1 > sig.thrsh)),]
+      if(is.null(dim(nzs))){
+        selection = which(sig1 > sig.thrsh)
+      }else{
+        selection = names(which.max(rowMeans(abs(nzs), na.rm = TRUE)))
+        # selection = names(which.max(rowSums(abs(nzs), na.rm = TRUE)))
+      }
+      param.to.add = which(rownames(files) == names(sig1[selection]))
       cells = as.numeric(unlist(regmatches(rownames(files)[param.to.add],
                                            gregexpr("\\d+", rownames(files)[param.to.add]))))
       DRIFT[cells[1], cells[2]] = paste0("A_", cells[1], ",", cells[2])
@@ -549,7 +526,7 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
       
       MI.cells = matrix(as.numeric(unlist(regmatches(names(MI_vals), gregexpr("\\d+", names(MI_vals))))), ncol = 2, byrow = TRUE)
       MI.cells = cbind(MI.cells, MI_vals, EPC_vals)
-      MI.cells[, 3] = ifelse(MI.cells[, 3] > qchisq(0.975, 1), MI.cells[, 4], 0)
+      MI.cells[, 3] = ifelse(MI.cells[, 3] > qchisq(0.99, 1), MI.cells[, 4], 0)
       
       temp.mat1 = temp.mat2 = matrix(NA, nvar, nvar)
       for (i in 1:nrow(cells)) {
@@ -617,15 +594,17 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
         files = cbind(files, mi_full)
         EPCs = cbind(EPCs, epc)
       }
-      sig1 = rowSums(pchisq(files, 1, lower.tail = FALSE) <= sg.ks[count, ], na.rm = TRUE) / ncol(files)
-      sig2 = rowMeans(abs(EPCs), na.rm = TRUE)
-      sigs = matrix(cbind(sig1, sig2), nrow(files))
-      rownames(sigs) = rownames(files)
-      SigThresh = sig1[which.max(sig1)] >= sub.sig.thrsh
-      if(SigThresh){
-        # param.to.add = which(names(which.max(sigs[which(sigs[,1] == max(sigs[,1])),2])) == rownames(sigs))
-        top = which(sigs[,1] == max(sigs[,1]))
-        param.to.add = top[ which.max(sigs[top, 2])]
+      z.scores = sqrt(files) * sign(EPCs)
+      sig1 = rowSums(pnorm(q = abs(z.scores), lower.tail = FALSE) <= sg.ks[count,], na.rm = TRUE) / ncol(files)
+      if(any(sig1 > sig.thrsh)){
+        nzs = z.scores[names(which(sig1 > sub.sig.thrsh)),]
+        if(is.null(dim(nzs))){
+          selection = which(sig1 > sub.sig.thrsh)
+        }else{
+          selection = names(which.max(rowMeans(abs(nzs), na.rm = TRUE)))
+          # selection = names(which.max(rowSums(abs(nzs), na.rm = TRUE)))
+        }
+        param.to.add = which(rownames(files) == names(sig1[selection]))
         cells = as.numeric(unlist(regmatches(rownames(files)[param.to.add], 
                                              gregexpr("\\d+", rownames(files)[param.to.add]))))
         DRIFT[cells[1], cells[2]] = paste0("A_", cells[1], ",", cells[2])
@@ -878,25 +857,6 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
               }
             }
             MIs = JPmx(fit, matrices = "A")
-          #   if(is.null(MIs) | is.null(MIs$MI.Full)){optimization = 1; fit = fit2}
-          #   if(abs(MIs$MI.Full)[which.max(abs(MIs$MI.Full))] >= qchisq(1-nks[count,], df = 1)){
-          #     cells = as.numeric(unlist(regmatches(names(which.max(MIs$MI.Full)),
-          #                                          gregexpr("\\d+", names(which.max(MIs$MI.Full))))))
-          #     
-          #     osc$A$free[cells[1], cells[2]] = TRUE
-          #     osc$A$labels[cells[1], cells[2]] = paste0("A_", cells[1], ",", cells[2])
-          #     message(paste0("Adding drift parameter A[", cells[1], ",", cells[2],"]"))
-          #     MIs = NULL
-          #     count = count + 1
-          #     if(sum(osc$A$free) == nvar^2){
-          #       optimization = 1
-          #     }
-          #   }else{
-          #     optimization = 1
-          #   }
-          # }
-            
-            
             if (is.null(MIs) || is.null(MIs$MI.Full)) {
               optimization = 1
               fit = fit2
@@ -910,12 +870,9 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
                 
                 osc$A$free[cells[1], cells[2]] = TRUE
                 osc$A$labels[cells[1], cells[2]] = paste0("A_", cells[1], ",", cells[2])
-                
                 message(paste0("Adding drift parameter A[", cells[1], ",", cells[2], "]"))
-                
                 MIs = NULL
                 count = count + 1
-                
                 if (sum(osc$A$free) == nvar^2) {
                   optimization = 1
                 }
