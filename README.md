@@ -26,7 +26,7 @@ Or use the `BibTeX` version below:
 - `dataframe`:
   - the dataset as a data.frame object or as a matrix
 - `id`:
-  - Character string denoting the ID variable; ideally, set to "ID"
+  - Character string denoting the ID variable; ideally, set to "id"
 - `time`:
   - Character string denoting the time index. If you encounter errors, rename the time-column to "Time". This is a bug I'm working on.
   - For each subject, time should begin at t = 0. Each successive time-point encapsulates time since 0
