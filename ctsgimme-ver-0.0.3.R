@@ -526,7 +526,7 @@ ctsgimme = function(varnames = NULL, dataframe = NULL,
       
       MI.cells = matrix(as.numeric(unlist(regmatches(names(MI_vals), gregexpr("\\d+", names(MI_vals))))), ncol = 2, byrow = TRUE)
       MI.cells = cbind(MI.cells, MI_vals, EPC_vals)
-      MI.cells[, 3] = ifelse(MI.cells[, 3] > qchisq(0.975, 1), MI.cells[, 4], 0)
+      MI.cells[, 3] = ifelse(MI.cells[, 3] > qchisq(0.95, 1), MI.cells[, 4], 0)
       
       temp.mat1 = temp.mat2 = matrix(NA, nvar, nvar)
       for (i in 1:nrow(cells)) {
