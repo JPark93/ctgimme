@@ -682,7 +682,7 @@ ctsgimme <- function(varnames = NULL, dataframe = NULL,
       files <- files[, usable_subjects, drop = FALSE]
       n_converge <- ncol(files)
       n_requested <- length(subject_ids)
-      saveRDS(files, "C:/Users/imjpark/Desktop/LOOKIT.rds")
+      saveRDS(files, paste0(directory, "/LOOKIT.rds"))
       if (is.null(files) || !n_converge) break
       
       if (n_converge <= (n_requested / 2)) {
