@@ -10,9 +10,6 @@ with iterative searches for temporal paths supported across the sample,
 shared within recovered membership groups, or specific to individual
 subjects.
 
-The GitHub repository retains its historical name, `ctgimme`; the installed R
-package and the function loaded with `library()` are named `ctsgimme`.
-
 The method is described in:
 
 > Park, J. J., Fisher, Z. F., Hunter, M. D., Shenk, C., Russell, M.,
@@ -173,7 +170,7 @@ result <- ctsgimme(
 )
 ```
 
-Version 0.0.11 always estimates that subgroup model from the summed likelihoods
+Version 0.0.11 estimates that subgroup model from the summed likelihoods
 of its members. Each member has an independently initialized continuous-time
 state-space filter, so no state is propagated across subject boundaries and no
 trajectories are concatenated. The saved result is one fitted OpenMx model with
@@ -191,11 +188,6 @@ the discrete-time transition plot. For subgroup `g`, the files are written to
 - `Subgroup <g> Params.png`;
 - `Subgroup <g> Delta_t = <delta>.png` for every requested delta t; and
 - `Subgroup_<g>Model.RDS`, containing the single fitted joint model.
-
-The former chaining selector and concatenation controls were removed in
-0.0.11: `subgroup.model.method`, `subgroup.time.mode`,
-`measurement.schedule`, `cycle.interval`, `insert.na.rows`, and `subject.gap`
-are no longer accepted arguments.
 
 ## OpenMx and RStudio compatibility
 
@@ -296,17 +288,6 @@ Use the package citation and its methodological reference with:
 ```r
 citation("ctsgimme")
 ```
-
-## Migrating from the pre-package repository
-
-Versions through the public 0.0.6 snapshot were loaded by sourcing a single R
-file. Version 0.0.11 is a standard R package: install it, call
-`library(ctsgimme)`, and use the documented exported functions. The old
-generated `ExampleResults` and monolithic source file remain available in Git
-history under the `pre-package-0.0.6` tag but are not part of the package.
-
-Version 0.0.11 also removes the former chained subgroup estimator and its
-concatenation controls. See [NEWS.md](NEWS.md) for the complete migration list.
 
 ## Development
 
