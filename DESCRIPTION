@@ -1,0 +1,51 @@
+Package: ctsgimme
+Title: Continuous-Time Subgrouping with Group Iterative Multiple Model Estimation
+Version: 0.0.11
+Authors@R: c(
+    person(
+      given = c("Jonathan", "J."),
+      family = "Park",
+      role = c("aut", "cre", "cph"),
+      email = "imJPark@UCDavis.edu",
+      comment = c(ORCID = "0000-0002-6636-3504")
+    ),
+    person(
+      given = c("Nathan", "Xin"),
+      family = "Mills",
+      role = c("aut", "ctb"),
+      email = "nxmills@berkeley.edu"
+    )
+  )
+Description: Estimates group-, subgroup-, and individual-level dynamic
+    structures from multivariate intensive longitudinal data using
+    continuous-time state-space models. The subgrouping procedure combines
+    iterative shared-path searches with recurrent-evidence feature screening
+    and partitioning around medoids. The continuous-time group iterative
+    multiple model estimation method is described in Park et al. (2025)
+    <doi:10.1080/10705511.2024.2429544>.
+URL: https://github.com/JPark93/ctgimme
+BugReports: https://github.com/JPark93/ctgimme/issues
+License: Apache License (== 2.0) | file LICENSE
+Encoding: UTF-8
+Language: en-US
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends:
+    R (>= 4.1.0)
+Imports:
+    cluster,
+    gtools,
+    matrixStats,
+    methods,
+    OpenMx,
+    parallel,
+    ps,
+    qgraph,
+    stats,
+    utils
+Suggests:
+    expm,
+    igraph,
+    nloptr,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3

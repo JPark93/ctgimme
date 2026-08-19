@@ -1,0 +1,36 @@
+citHeader("To cite ctsgimme and its methodological basis, use:")
+
+bibentry(
+  bibtype = "Manual",
+  title = paste(
+    "ctsgimme: Continuous-Time Subgrouping with Group Iterative",
+    "Multiple Model Estimation"
+  ),
+  author = c(
+    person("Jonathan J.", "Park"),
+    person("Nathan Xin", "Mills")
+  ),
+  year = "2026",
+  note = paste("R package version", meta$Version),
+  url = "https://github.com/JPark93/ctgimme"
+)
+
+bibentry(
+  bibtype = "Article",
+  title = "Unsupervised Model Construction in Continuous-Time",
+  author = c(
+    person("Jonathan J.", "Park"),
+    person("Zachary F.", "Fisher"),
+    person("Michael D.", "Hunter"),
+    person("Chad", "Shenk"),
+    person("Michael", "Russell"),
+    person("Peter C. M.", "Molenaar"),
+    person("Sy-Miin", "Chow")
+  ),
+  year = "2025",
+  journal = "Structural Equation Modeling: A Multidisciplinary Journal",
+  volume = "32",
+  number = "3",
+  pages = "377--399",
+  doi = "10.1080/10705511.2024.2429544"
+)

@@ -1,0 +1,13 @@
+^ctsgimme\.Rproj$
+^\.Rproj\.user$
+^\.gitignore$
+^\.gitattributes$
+^README\.Rmd$
+^cran-comments\.md$
+^\.github$
+^build$
+^dist$
+^tmp$
+^CONTRIBUTING\.md$
+^RELEASE\.md$
+^tests/testthat/Rplots\.pdf$
