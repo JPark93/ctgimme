@@ -22,6 +22,9 @@
 - Propagated the master session's library paths to PSOCK workers and exported
   the refactored initial-covariance helpers, preventing two-worker fits from
   failing after an R/library upgrade or during subject-model construction.
+- Relayed warning conditions raised by PSOCK subject-fit workers through the
+  main R process with `cores = 2`, without changing fitting or selection
+  behavior.
 - Hardened subject-artifact handling for portable filesystems: identifiers
   must be unique without regard to case, generated prefixes/suffixes are
   decoded literally, wildcard characters are never expanded during cleanup,

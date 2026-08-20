@@ -196,11 +196,12 @@ The default is \code{FALSE}, which fixes all process-noise variances at
 
 \item{verbose}{Logical scalar controlling informational progress output. If
 \code{TRUE} (the default), stage messages and optimizer reporting from fits in
-the main R process are shown; PSOCK worker output is not forwarded by the
-parallel backend. If \code{FALSE}, package messages and main-process optimizer
-reports are suppressed. Warnings and errors remain visible and can be
-handled with standard R condition tools such as \code{\link[=suppressWarnings]{suppressWarnings()}} and
-\code{\link[=tryCatch]{tryCatch()}}.}
+the main R process are shown; informational PSOCK worker output is not
+forwarded by the parallel backend. If \code{FALSE}, package messages and
+main-process optimizer reports are suppressed. Worker warnings are
+relayed through the main process regardless of \code{verbose}. Warnings and
+errors remain visible and can be handled with standard R condition tools
+such as \code{\link[=suppressWarnings]{suppressWarnings()}} and \code{\link[=tryCatch]{tryCatch()}}.}
 }
 \value{
 If subgroup detection is disabled or falls back to one membership

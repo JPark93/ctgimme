@@ -275,7 +275,10 @@ For `cores > 1`, `ctgimme` creates one PSOCK worker pool and reuses it for the
 group, subgroup, and individual fitting batches. Workers load OpenMx and
 qgraph once, wait idle while the main R process pools modification indices and
 selects the next path or subgroup, and then receive the next fitting batch.
-The pool is stopped when the analysis finishes or exits with an error.
+Warnings raised by worker fits are relayed through the main R process and
+remain suppressible with standard R condition handling. Informational worker
+output is not forwarded. The pool is stopped when the analysis finishes or
+exits with an error.
 
 ## Quick demonstration
 

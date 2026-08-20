@@ -147,11 +147,12 @@
 #'   is `FALSE`, which preserves the supplied scale.
 #' @param verbose Logical scalar controlling informational progress output. If
 #'   `TRUE` (the default), stage messages and optimizer reporting from fits in
-#'   the main R process are shown; PSOCK worker output is not forwarded by the
-#'   parallel backend. If `FALSE`, package messages and main-process optimizer
-#'   reports are suppressed. Warnings and errors remain visible and can be
-#'   handled with standard R condition tools such as [suppressWarnings()] and
-#'   [tryCatch()].
+#'   the main R process are shown; informational PSOCK worker output is not
+#'   forwarded by the parallel backend. If `FALSE`, package messages and
+#'   main-process optimizer reports are suppressed. Worker warnings are
+#'   relayed through the main process regardless of `verbose`. Warnings and
+#'   errors remain visible and can be handled with standard R condition tools
+#'   such as [suppressWarnings()] and [tryCatch()].
 #'
 #' @return If subgroup detection is disabled or falls back to one membership
 #'   group, an invisible list with elements `message`, `G.DRIFT`, `membership`,

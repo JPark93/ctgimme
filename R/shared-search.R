@@ -80,7 +80,13 @@
       ),
       envir = environment()
     )
-    invisible(parLapply(cl, subject_ids, fit_one))
+    worker_results <- parLapply(
+      cl,
+      subject_ids,
+      .ctgimme_capture_worker_result,
+      fit_function = fit_one
+    )
+    invisible(.ctgimme_relay_worker_results(worker_results))
   }
 }
 

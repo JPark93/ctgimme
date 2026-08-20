@@ -9,6 +9,37 @@
   invisible(NULL)
 }
 
+.ctgimme_capture_worker_result <- function(subject_id, fit_function) {
+  warning_messages <- character()
+  value <- withCallingHandlers(
+    fit_function(subject_id),
+    warning = function(condition) {
+      warning_messages <<- c(warning_messages, conditionMessage(condition))
+      tryInvokeRestart("muffleWarning")
+    }
+  )
+  list(
+    subject_id = as.character(subject_id),
+    value = value,
+    warnings = warning_messages
+  )
+}
+
+.ctgimme_relay_worker_results <- function(results) {
+  for (result in results) {
+    if (length(result$warnings)) {
+      for (warning_message in result$warnings) {
+        warning(
+          "Worker warning for subject ", result$subject_id, ": ",
+          warning_message,
+          call. = FALSE
+        )
+      }
+    }
+  }
+  invisible(lapply(results, function(result) result$value))
+}
+
 .ctgimme_mx_try_hard <- function(model, verbose = TRUE, ...) {
   run <- function() {
     # OpenMx uses its interactive progress callback when `silent = TRUE`.

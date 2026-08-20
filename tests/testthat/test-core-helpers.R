@@ -11,6 +11,151 @@ test_that("the OpenMx modification-index API is available", {
   expect_true(is.function(OpenMx::mxMI))
 })
 
+test_that("PSOCK worker warnings are relayed without changing return values", {
+  cluster <- parallel::makeCluster(2L)
+  on.exit(parallel::stopCluster(cluster), add = TRUE)
+
+  worker_function <- function(subject_id) {
+    if (identical(subject_id, "B")) warning("synthetic numerical warning")
+    if (identical(subject_id, "C")) {
+      signalCondition(simpleWarning("directly signaled warning condition"))
+    }
+    paste0("fit-", subject_id)
+  }
+  worker_results <- parallel::parLapply(
+    cluster,
+    c("A", "B", "C"),
+    ctgimme:::.ctgimme_capture_worker_result,
+    fit_function = worker_function
+  )
+
+  warning_messages <- character()
+  values <- withCallingHandlers(
+    ctgimme:::.ctgimme_relay_worker_results(worker_results),
+    warning = function(condition) {
+      warning_messages <<- c(warning_messages, conditionMessage(condition))
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_identical(values, list("fit-A", "fit-B", "fit-C"))
+  expect_length(warning_messages, 2L)
+  expect_true(any(grepl("subject B", warning_messages, fixed = TRUE)))
+  expect_true(any(grepl("synthetic numerical warning", warning_messages,
+    fixed = TRUE
+  )))
+  expect_true(any(grepl("subject C", warning_messages, fixed = TRUE)))
+  expect_true(any(grepl("directly signaled warning condition", warning_messages,
+    fixed = TRUE
+  )))
+  expect_silent(
+    suppressed <- suppressWarnings(
+      ctgimme:::.ctgimme_relay_worker_results(worker_results)
+    )
+  )
+  expect_identical(suppressed, values)
+
+  fatal_function <- function(subject_id) {
+    if (identical(subject_id, "B")) stop("synthetic uncaught worker error")
+    subject_id
+  }
+  expect_error(
+    parallel::parLapply(
+      cluster,
+      c("A", "B"),
+      ctgimme:::.ctgimme_capture_worker_result,
+      fit_function = fatal_function
+    ),
+    "synthetic uncaught worker error",
+    fixed = TRUE
+  )
+})
+
+test_that("parallel fitting batches relay warnings with subject IDs", {
+  output_directory <- tempfile("ctgimme-worker-relay-")
+  on.exit(unlink(output_directory, recursive = TRUE), add = TRUE)
+  input <- data.frame(
+    id = rep(c("A", "B"), each = 2L),
+    Time = rep(0:1, 2L),
+    x = c(0, 1, 1, 0)
+  )
+  context <- list(
+    id = "id",
+    cores = 2L,
+    directory = output_directory,
+    nvar = 1L,
+    varnames = "x",
+    ME.var = matrix(0.05, 1L, 1L),
+    PE.var = matrix(1, 1L, 1L),
+    ME.free = matrix(FALSE, 1L, 1L),
+    PE.free = matrix(FALSE, 1L, 1L),
+    time_col = "Time",
+    verbose = FALSE
+  )
+  fake_cluster <- structure(list(), class = "ctgimme_test_cluster")
+
+  testthat::local_mocked_bindings(
+    build_ou_model = function(...) list(model = TRUE),
+    .ctgimme_mx_try_hard = function(...) {
+      warning("synthetic shared-fit warning")
+      NULL
+    },
+    .ctgimme_fit_individual = function(context, i, ...) {
+      warning("synthetic individual-fit warning")
+      paste0("individual-", i)
+    },
+    clusterExport = function(...) invisible(NULL),
+    parLapply = function(cl, values, fun, ...) lapply(values, fun, ...),
+    .package = "ctgimme"
+  )
+
+  shared_warnings <- character()
+  shared_values <- withCallingHandlers(
+    ctgimme:::.ctgimme_fit_subjects(
+      context,
+      input,
+      c("A", "B"),
+      matrix("A_1,1", 1L, 1L),
+      file.path(output_directory, "Models"),
+      worker_cluster = fake_cluster
+    ),
+    warning = function(condition) {
+      shared_warnings <<- c(shared_warnings, conditionMessage(condition))
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_identical(shared_values, list(NULL, NULL))
+  expect_length(shared_warnings, 2L)
+  expect_true(all(grepl("synthetic shared-fit warning", shared_warnings)))
+  expect_true(any(grepl("subject A", shared_warnings, fixed = TRUE)))
+  expect_true(any(grepl("subject B", shared_warnings, fixed = TRUE)))
+
+  individual_warnings <- character()
+  individual_values <- withCallingHandlers(
+    ctgimme:::.ctgimme_run_individual_fits(
+      context,
+      c("A", "B"),
+      input,
+      matrix("A_1,1", 1L, 1L),
+      0L,
+      matrix(numeric(), 0L, 1L),
+      0.01,
+      worker_cluster = fake_cluster
+    ),
+    warning = function(condition) {
+      individual_warnings <<- c(
+        individual_warnings,
+        conditionMessage(condition)
+      )
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_identical(individual_values, list("individual-A", "individual-B"))
+  expect_length(individual_warnings, 2L)
+  expect_true(all(grepl("synthetic individual-fit warning", individual_warnings)))
+  expect_true(any(grepl("subject A", individual_warnings, fixed = TRUE)))
+  expect_true(any(grepl("subject B", individual_warnings, fixed = TRUE)))
+})
+
 test_that("parameter names use OpenMx column-major ordering", {
   expect_identical(
     ctgimme:::compute_param_names(2),
