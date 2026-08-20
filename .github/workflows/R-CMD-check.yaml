@@ -8,13 +8,19 @@ name: R-CMD-check.yaml
 
 permissions: read-all
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   R-CMD-check:
     runs-on: ${{ matrix.config.os }}
+    timeout-minutes: 90
 
     name: ${{ matrix.config.os }} (${{ matrix.config.r }})
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
         config:
           - {os: macos-latest, r: 'release'}

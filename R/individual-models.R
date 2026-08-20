@@ -1,4 +1,4 @@
-.ctsgimme_fit_individual <- function(
+.ctgimme_fit_individual <- function(
     context, i, new.data, SG.DRIFT, m, nks, Ialpha) {
   DRIFT <- SG.DRIFT
   subset_dat <- new.data[
@@ -20,8 +20,11 @@
     ub = 10,
     time_col = context$time_col
   )
-  fit <- tryCatch(OpenMx::mxTryHard(osc, silent = FALSE), error = function(e) {
-    message("Error for subject ", i, ": ", e$message)
+  fit <- tryCatch(.ctgimme_mx_try_hard(
+    osc,
+    context$verbose
+  ), error = function(e) {
+    warning("Error for subject ", i, ": ", e$message, call. = FALSE)
     NULL
   })
   if (is.null(fit)) return(NULL)
@@ -32,7 +35,7 @@
     if (count > 1) {
       fit2 <- fit
       fit <- tryCatch(
-        OpenMx::mxTryHard(osc, silent = FALSE),
+        .ctgimme_mx_try_hard(osc, context$verbose),
         error = function(e) NULL
       )
       if (is.null(fit) || any(is.na(summary(fit)$parameters$Std.Error))) {
@@ -55,10 +58,10 @@
       if (is.finite(max_val) &&
           max_val >= qchisq(1 - nks[count, ], df = 1)) {
         max_name <- names(MIs$MI.Full)[max_idx]
-        cells <- .ctsgimme_get_cells(max_name)
+        cells <- .ctgimme_get_cells(max_name)
         osc$A$free[cells[1], cells[2]] <- TRUE
         osc$A$labels[cells[1], cells[2]] <- NA_character_
-        message(paste0(
+        .ctgimme_inform(context$verbose, paste0(
           "Adding drift parameter A[", cells[1], ",", cells[2], "]"
         ))
         count <- count + 1
@@ -67,23 +70,26 @@
         optimization <- 1
       }
     } else {
-      message(paste0(
+      warning(paste0(
         "Malformed MI.Full: names and values mismatch. Skipping subject ",
         i
-      ))
+      ), call. = FALSE)
       optimization <- 1
       fit <- fit2
     }
   }
 
-  message("Pruning Stage.")
+  .ctgimme_inform(context$verbose, "Pruning stage.")
   prune <- 0
   prune_iter <- 0
   max_prune_iter <- context$nvar^2
   while (prune < 1) {
     prune_iter <- prune_iter + 1
     if (prune_iter > max_prune_iter) {
-      message("Pruning stopped after maximum number of iterations.")
+      .ctgimme_inform(
+        context$verbose,
+        "Pruning stopped after maximum number of iterations."
+      )
       break
     }
     stat.sig <- tryCatch(summary(fit)$parameters, error = function(e) NULL)
@@ -96,12 +102,15 @@
     prunable <- stat.sig[!protected[idx], , drop = FALSE]
     prunable <- prunable[is.finite(prunable$z), , drop = FALSE]
     if (nrow(prunable) == 0 || is.null(nrow(prunable))) {
-      message("No unprotected parameters left to prune.")
+      .ctgimme_inform(
+        context$verbose,
+        "No unprotected parameters left to prune."
+      )
       break
     }
     min_z_index <- which.min(prunable$z)
     if (length(prunable$z[min_z_index]) == 0) {
-      message("All Prunable Paths Removed.")
+      .ctgimme_inform(context$verbose, "All prunable paths removed.")
       break
     }
     if (prunable$z[min_z_index] < qnorm(1 - Ialpha)) {
@@ -110,27 +119,30 @@
       osc$A$free[cells[1, 1], cells[1, 2]] <- FALSE
       osc$A$labels[cells[1, 1], cells[1, 2]] <- NA_character_
       new_fit <- tryCatch(
-        OpenMx::mxTryHard(osc, silent = FALSE),
+        .ctgimme_mx_try_hard(osc, context$verbose),
         error = function(e) NULL
       )
       if (is.null(new_fit)) {
         osc$A$free[cells[1, 1], cells[1, 2]] <- TRUE
-        message("Pruning fit failed; retaining last converged fit.")
+        warning(
+          "Pruning fit failed; retaining last converged fit.",
+          call. = FALSE
+        )
         break
       }
       fit <- new_fit
-      message(paste0(
+      .ctgimme_inform(context$verbose, paste0(
         "NOTE: Pruned drift parameter: A[",
         cells[1, 1], ",", cells[1, 2], "]!"
       ))
     } else {
-      message("No Pruning Conducted.")
+      .ctgimme_inform(context$verbose, "No pruning conducted.")
       prune <- 1
     }
   }
 
   if (!is.null(fit)) {
-    .ctsgimme_save_rds(
+    .ctgimme_save_rds(
       fit,
       file.path(
         context$directory,
@@ -145,7 +157,7 @@
       ests[stat.sig$row[jj], stat.sig$col[jj]] <- stat.sig$Estimate[jj]
     }
     ests <- t(ests)
-    .ctsgimme_safe_png(
+    .ctgimme_safe_png(
       file.path(
         context$directory,
         "Models",
@@ -169,7 +181,7 @@
   invisible(fit)
 }
 
-.ctsgimme_run_individual_fits <- function(
+.ctgimme_run_individual_fits <- function(
     context, valid_ids, new.data, SG.DRIFT, m, nks, Ialpha,
     worker_cluster = NULL) {
   # Resolve caller promises on the master before exporting the closure to
@@ -184,7 +196,7 @@
   force(worker_cluster)
 
   fit_individual <- function(i) {
-    .ctsgimme_fit_individual(
+    .ctgimme_fit_individual(
       context,
       i,
       new.data,
@@ -200,19 +212,21 @@
   } else {
     owns_cluster <- is.null(worker_cluster)
     cl <- if (owns_cluster) {
-      .ctsgimme_make_worker_cluster(min(context$cores, length(valid_ids)))
+      .ctgimme_make_worker_cluster(min(context$cores, length(valid_ids)))
     } else {
       worker_cluster
     }
     if (owns_cluster) {
-      on.exit(.ctsgimme_stop_worker_cluster(cl), add = TRUE)
+      on.exit(.ctgimme_stop_worker_cluster(cl), add = TRUE)
     }
     clusterExport(
       cl,
       c(
-        "fit_individual", ".ctsgimme_fit_individual",
-        "build_ou_model", ".ctsgimme_save_rds", ".ctsgimme_safe_png",
-        ".ctsgimme_get_cells"
+        "fit_individual", ".ctgimme_fit_individual",
+        "build_ou_model", ".ctgimme_save_rds", ".ctgimme_safe_png",
+        ".ctgimme_get_cells", ".ctgimme_inform", ".ctgimme_mx_try_hard",
+        ".ctgimme_resolve_initial_covariance",
+        ".ctgimme_initial_covariance"
       ),
       envir = environment()
     )
@@ -220,7 +234,7 @@
   }
 }
 
-.ctsgimme_run_subgroup_stages <- function(
+.ctgimme_run_subgroup_stages <- function(
     context, memb, G.DRIFT, S.Galpha, sub.sig.thrsh, subgroup.model,
     time.intervals, Ialpha, worker_cluster = NULL) {
   for (subgroup in sort(unique(memb))) {
@@ -241,7 +255,7 @@
     valid_ids <- unique(new.data[[context$id]])
     if (!length(valid_ids)) next
 
-    DRIFT <- .ctsgimme_shared_search(
+    DRIFT <- .ctgimme_shared_search(
       context,
       valid_ids,
       DRIFT,
@@ -252,12 +266,12 @@
       protected_mask = G.DRIFT != "0",
       worker_cluster = worker_cluster
     )
-    message(paste0(
+    .ctgimme_inform(context$verbose, paste0(
       "Subgroup Search ", subgroup, " of ", max(memb), " Complete."
     ))
 
     if (subgroup.model == TRUE) {
-      .ctsgimme_fit_subgroup_model(
+      .ctgimme_fit_subgroup_model(
         context,
         new.data,
         DRIFT,
@@ -268,7 +282,10 @@
       )
     }
 
-    message("Beginning Individual Model Fitting for Subgroup Members")
+    .ctgimme_inform(
+      context$verbose,
+      "Beginning individual model fitting for subgroup members."
+    )
     m <- (context$nvar^2) - sum(DRIFT != "0")
     nks <- make_threshold_sequence(
       context$nvar^2,
@@ -288,7 +305,7 @@
       SG.DRIFT,
       file.path(context$directory, paste0("SGStruc", subgroup, ".RDS"))
     )
-    .ctsgimme_safe_png(
+    .ctgimme_safe_png(
       file.path(
         subgroup_dir,
         paste0("Subgroup ", subgroup, " Paths.png")
@@ -305,7 +322,7 @@
       }
     )
 
-    .ctsgimme_run_individual_fits(
+    .ctgimme_run_individual_fits(
       context,
       valid_ids,
       new.data,

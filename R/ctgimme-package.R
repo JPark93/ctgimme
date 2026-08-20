@@ -1,6 +1,6 @@
-#' Continuous-Time Subgrouping with Group Iterative Multiple Model Estimation
+#' Continuous-Time Subgrouping with GIMME
 #'
-#' `ctsgimme` estimates group-, subgroup-, and individual-level dynamic
+#' `ctgimme` estimates group-, subgroup-, and individual-level dynamic
 #' structures using continuous-time state-space models. The package uses a
 #' shrunk empirical initial-state covariance and recurrent-evidence PAM as its
 #' default subgrouping procedure.

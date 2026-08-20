@@ -1,9 +1,9 @@
-# ctsgimme
+# ctgimme
 
 [![R-CMD-check](https://github.com/JPark93/ctgimme/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/JPark93/ctgimme/actions/workflows/R-CMD-check.yaml)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
-`ctsgimme` estimates group-, subgroup-, and individual-level continuous-time
+`ctgimme` estimates group-, subgroup-, and individual-level continuous-time
 dynamic networks from intensive longitudinal data using continuous-time
 subgrouping GIMME (C-TSGIMME). It combines continuous-time state-space models
 with iterative searches for temporal paths supported across the sample,
@@ -29,11 +29,11 @@ if (!requireNamespace("remotes", quietly = TRUE)) {
 remotes::install_github("JPark93/ctgimme", dependencies = TRUE)
 ```
 
-Install the 0.0.11 source archive while also resolving dependencies:
+Install the 0.0.12 source archive while also resolving dependencies:
 
 ```r
 remotes::install_local(
-  "path/to/ctsgimme_0.0.11.tar.gz",
+  "path/to/ctgimme_0.0.12.tar.gz",
   dependencies = TRUE
 )
 ```
@@ -42,7 +42,7 @@ If the dependencies are already installed, base R can install the archive:
 
 ```r
 install.packages(
-  "path/to/ctsgimme_0.0.11.tar.gz",
+  "path/to/ctgimme_0.0.12.tar.gz",
   repos = NULL,
   type = "source"
 )
@@ -56,7 +56,7 @@ installed version of R.
 
 ## Data requirements
 
-The primary function, `ctsgimme()`, expects a data frame in long format with
+The primary function, `ctgimme()`, expects a data frame in long format with
 one row per observation. The `id` and `time` arguments name the subject and
 observation-time columns, and `varnames` names the modeled variables. These
 columns may appear in any position. Identifier and time values must be
@@ -67,16 +67,18 @@ likelihood.
 
 The order of `varnames` determines the order of variables in the fitted drift
 and noise matrices. Subject identifiers are also used in intermediate
-filenames, so filename-safe identifiers are recommended. The selected time
+filenames and therefore must be valid portable filename components. The
+identifier values must also remain unique when compared without case, because
+common Windows and macOS filesystems are case-insensitive. The selected time
 column is copied internally to a reserved column named `Time`; do not use
 `Time` as the name of a modeled process variable.
 
 ## Basic use
 
 ```r
-library(ctsgimme)
+library(ctgimme)
 
-result <- ctsgimme(
+result <- ctgimme(
   varnames = c("x1", "x2", "x3"),
   dataframe = my_long_data,
   id = "subject_id",
@@ -85,9 +87,15 @@ result <- ctsgimme(
   sub.sig.thrsh = 0.55,
   max.subgroups = 4,
   cores = 1,
-  directory = "ctsgimme-output"
+  directory = "ctgimme-output",
+  verbose = TRUE
 )
 ```
+
+Set `verbose = FALSE` to suppress package progress messages and OpenMx
+optimizer reporting. Warnings and errors remain available through standard R
+condition handling, and the returned object and written artifacts are the same
+under either setting.
 
 ## Search and subgroup controls
 
@@ -133,12 +141,12 @@ variance argument as its starting value. Logical vectors allow selective
 estimation in the order given by `varnames`:
 
 ```r
-result <- ctsgimme(
+result <- ctgimme(
   varnames = c("x1", "x2", "x3"),
   dataframe = my_long_data,
   id = "subject_id",
   time = "observation_time",
-  directory = "ctsgimme-output",
+  directory = "ctgimme-output",
   ME.var = 0.05,
   ME.free = FALSE,
   PE.var = 1,
@@ -163,15 +171,15 @@ discrete-time transition plots, and fitted-model RDS file. This workflow
 requires `expm`.
 
 ```r
-result <- ctsgimme(
+result <- ctgimme(
   ...,
   subgroup.model = TRUE,
   time.intervals = c(0.25, 1, 2)
 )
 ```
 
-Version 0.0.11 estimates that subgroup model from the summed likelihoods
-of its members. Each member has an independently initialized continuous-time
+The subgroup model is estimated from the summed likelihoods of its members.
+Each member has an independently initialized continuous-time
 state-space filter, so no state is propagated across subject boundaries and no
 trajectories are concatenated. The saved result is one fitted OpenMx model with
 one top-level `A`, `Q`, and `R`; its subject children are likelihood blocks,
@@ -181,7 +189,7 @@ observation times are rebased to its first observation, preserving all
 within-person elapsed intervals while removing arbitrary calendar offsets.
 
 `time.intervals` remains the only subgroup-model time control. For every
-requested nonnegative delta t, ctsgimme computes `exp(A * delta_t)` and writes
+requested nonnegative delta t, ctgimme computes `exp(A * delta_t)` and writes
 the discrete-time transition plot. For subgroup `g`, the files are written to
 `Models/Subgroup <g>/` with these names:
 
@@ -191,35 +199,40 @@ the discrete-time transition plot. For subgroup `g`, the files are written to
 
 ## OpenMx and RStudio compatibility
 
-All internal `mxTryHard()` calls use OpenMx's standard console reporting rather
-than its interactive progress callback. This avoids an OpenMx/RStudio failure
-in which `imxReportProgress` cannot be found, including during the subgroup
-model fit. Subgroup parameter plots also supply edge labels as a square matrix,
-as required by `qgraph` for the fitted drift matrix. Parameter and transition
-plots use expanded margins so boundary nodes, loops, titles, and labels are not
-clipped in the saved PNG files.
+All internal `mxTryHard()` calls pass through one package wrapper. With
+`verbose = TRUE`, package stage messages and ordinary optimizer reporting from
+fits in the main R process are shown; PSOCK workers do not forward raw console
+output. With `verbose = FALSE`, package messages and main-process OpenMx output
+are suppressed so a quiet run remains quiet. Subgroup parameter plots also
+supply edge labels as a square matrix, as required by `qgraph` for the fitted
+drift matrix. Parameter and transition plots use expanded margins so boundary
+nodes, loops, titles, and labels are not clipped in the saved PNG files.
 
 For a first run on a new computer, use `cores = 1` and a new, empty output
-directory. After that run succeeds, increase `cores` gradually. Large core
-counts can multiply OpenMx's memory use because each worker is a separate R
-process.
+directory. After that run succeeds, `cores = 2` can reduce elapsed time, at the
+cost of the memory used by one additional R/OpenMx worker. Requests above two
+are reduced to the package-wide two-worker maximum.
 
 ## Results and output files
 
 When enabled subgroup detection succeeds, the function returns the selected
-PAM or Walktrap clustering object. PAM results additionally contain a complete,
-ID-aligned `membership` vector. If PAM has fewer than three usable subject
+PAM or Walktrap clustering object. Both forms carry the complete, ID-aligned
+vector in `attr(result, "ctgimme.membership")`; PAM results additionally expose
+the same vector as `result$membership`. If PAM has fewer than three usable subject
 model/MI pairs or no recurrent eligible features, or legacy detection has fewer
 than two usable pairs, detection falls back to one membership group and the
-function returns `NULL`. A successfully computed legacy solution may itself
-contain one community and still returns its communities object.
+function invisibly returns a result list containing the complete membership,
+group structure, output directory, and subgroup diagnostics. A successfully
+computed legacy solution may itself contain one community and still returns
+its communities object.
 
-When `sub.sig.thrsh = 1`, the function invisibly returns a list containing the
-group structure, complete membership vector, output directory, and completion
-message. Regardless of the return form, every successfully completed run saves
-the complete ID-aligned membership to `subgroup_membership.csv` and
-`subgroup_detection.rds`. Subjects without usable model/MI artifacts are
-assigned to group 1 in these complete outputs.
+When `sub.sig.thrsh = 1`, the same result-list form includes the group
+structure, complete membership vector, output directory, subgroup-detection
+record, and completion message. Thus every successful return directly exposes
+the complete membership. Every successfully completed run
+also saves it to `subgroup_membership.csv` and `subgroup_detection.rds`.
+Subjects without usable model/MI artifacts are assigned to group 1 in these
+complete outputs.
 
 The output directory includes:
 
@@ -253,15 +266,12 @@ not placed on the map.
 
 ## Parallel execution
 
-The `cores` argument defaults to one. Explicit requests for additional workers
-are bounded by the number of subjects. The code does not separately cap them at
-the number of available logical processors. During an R package check, an
-active `_R_CHECK_LIMIT_CORES_` setting imposes an additional two-worker cap;
-this does not impose a general two-worker limit on ordinary analyses. OpenMx is
-set to one thread in each R process during the run, and the calling process's
-previous OpenMx thread setting is restored on exit.
+The `cores` argument defaults to one. Explicit requests are bounded by both the
+number of subjects and a package-wide maximum of two workers, in accordance
+with CRAN policy. OpenMx is set to one thread in each R process during the run,
+and the calling process's previous OpenMx thread setting is restored on exit.
 
-For `cores > 1`, CTSGIMME creates one PSOCK worker pool and reuses it for the
+For `cores > 1`, `ctgimme` creates one PSOCK worker pool and reuses it for the
 group, subgroup, and individual fitting batches. Workers load OpenMx and
 qgraph once, wait idle while the main R process pools modification indices and
 selects the next path or subgroup, and then receive the next fitting batch.
@@ -269,11 +279,11 @@ The pool is stopped when the analysis finishes or exits with an error.
 
 ## Quick demonstration
 
-`ctsgimme_demo()` provides a deterministic, lightweight demonstration of the
+`ctgimme_demo()` provides a deterministic, lightweight demonstration of the
 feature-selection and subgrouping logic without fitting OpenMx models:
 
 ```r
-demo <- ctsgimme_demo()
+demo <- ctgimme_demo()
 demo$membership
 demo$candidates
 ```
@@ -286,17 +296,19 @@ known two-subgroup partition.
 Use the package citation and its methodological reference with:
 
 ```r
-citation("ctsgimme")
+citation("ctgimme")
 ```
 
 ## Development
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the test and pull-request workflow.
+See the
+[contributing guide](https://github.com/JPark93/ctgimme/blob/main/CONTRIBUTING.md)
+for the test and pull-request workflow.
 Release notes are maintained in [NEWS.md](NEWS.md).
 
 ## Authors and license
 
-`ctsgimme` is authored by Jonathan J. Park
+`ctgimme` is authored by Jonathan J. Park
 (<imJPark@UCDavis.edu>) and Nathan Xin Mills
 (<nxmills@berkeley.edu>). The package is distributed under the Apache License
 2.0.

@@ -1,0 +1,64 @@
+name: Installed ISDSA release acceptance
+
+on:
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  installed-isdsa:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    env:
+      R_KEEP_PKG_SOURCE: yes
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: |
+            any::digest
+            any::pkgbuild
+          needs: check
+
+      - name: Build and install the source archive
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path acceptance-build -Force | Out-Null
+          Rscript --vanilla -e "pkgbuild::build('.', dest_path = 'acceptance-build', binary = FALSE, vignettes = FALSE, manual = FALSE)"
+          $archive = (Get-ChildItem -LiteralPath acceptance-build -Filter 'ctgimme_*.tar.gz').FullName
+          $library = Join-Path $env:RUNNER_TEMP 'ctgimme-acceptance-library'
+          New-Item -ItemType Directory -Path $library -Force | Out-Null
+          R CMD INSTALL "--library=$library" $archive
+          if ($LASTEXITCODE -ne 0) { throw 'R CMD INSTALL failed.' }
+          "CTGIMME_ACCEPTANCE_ARCHIVE=$archive" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CTGIMME_ACCEPTANCE_LIBRARY=$library" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Run installed-package ISDSA acceptance
+        shell: pwsh
+        run: |
+          $priorLibraries = $env:R_LIBS_USER
+          $separator = [IO.Path]::PathSeparator
+          $env:R_LIBS_USER = if ([string]::IsNullOrWhiteSpace($priorLibraries)) {
+            $env:CTGIMME_ACCEPTANCE_LIBRARY
+          } else {
+            $env:CTGIMME_ACCEPTANCE_LIBRARY + $separator + $priorLibraries
+          }
+          Rscript --vanilla validation/validate-isdsa-installed.R --output=acceptance-output
+          if ($LASTEXITCODE -ne 0) { throw 'Installed ISDSA acceptance failed.' }
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $env:CTGIMME_ACCEPTANCE_ARCHIVE).Hash
+          "archive_sha256=$hash" | Out-File -FilePath acceptance-output/archive-sha256.txt -Encoding ascii
+
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: installed-isdsa-acceptance
+          path: acceptance-output
+          if-no-files-found: error

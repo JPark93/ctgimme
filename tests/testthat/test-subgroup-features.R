@@ -3,7 +3,7 @@ test_that("recurrent evidence retains repeated signed detections", {
     recurrent = rep(c(-3, 3), 10),
     null = rep(0, 20)
   )
-  selected <- ctsgimme:::.ctsgimme_select_recurrent_subgroup_features(features)
+  selected <- ctgimme:::.ctgimme_select_recurrent_subgroup_features(features)
 
   expect_identical(selected$kept.features, "recurrent")
   expect_identical(as.numeric(selected$scaled[, 1]), rep(c(-1, 1), 10))
@@ -13,7 +13,7 @@ test_that("recurrent evidence retains repeated signed detections", {
 
 test_that("subgroup distance is mean Manhattan distance per feature", {
   features <- rbind(a = c(-1, 0), b = c(1, 1), c = c(-1, 1))
-  distance <- ctsgimme:::.ctsgimme_subgroup_manhattan_distance(features)
+  distance <- ctgimme:::.ctgimme_subgroup_manhattan_distance(features)
 
   expect_equal(distance["a", "b"], 1.5)
   expect_equal(distance["a", "c"], 0.5)
@@ -27,16 +27,16 @@ test_that("PAM selection preserves subject identifiers and diagnostics", {
     s5 = c(8, 0), s6 = c(8, 0.1)
   )
   distance <- as.matrix(stats::dist(points, method = "manhattan"))
-  selected <- ctsgimme:::.ctsgimme_choose_pam_by_silhouette(distance, 2:3)
+  selected <- ctgimme:::.ctgimme_choose_pam_by_silhouette(distance, 2:3)
 
   expect_identical(names(selected$fit$clustering), rownames(points))
-  expect_identical(attr(selected$fit, "ctsgimme.method"), "pam")
+  expect_identical(attr(selected$fit, "ctgimme.method"), "pam")
   expect_equal(nrow(selected$candidates), 2L)
   expect_equal(sum(selected$candidates$selected), 1L)
 })
 
 test_that("subgroup membership artifacts identify every subject", {
-  output_directory <- tempfile("ctsgimme-membership-")
+  output_directory <- tempfile("ctgimme-membership-")
   membership <- stats::setNames(c(2L, 1L, 2L, 1L), c("S04", "S01", "S08", "S03"))
   features <- rbind(
     S04 = c(4, 4),
@@ -46,7 +46,7 @@ test_that("subgroup membership artifacts identify every subject", {
   )
   distance <- as.matrix(stats::dist(features, method = "manhattan"))
 
-  artifacts <- ctsgimme:::.ctsgimme_write_subgroup_membership(
+  artifacts <- ctgimme:::.ctgimme_write_subgroup_membership(
     membership,
     output_directory,
     distance = distance,
@@ -71,7 +71,7 @@ test_that("subject map coordinates preserve pairwise proximity", {
     D = c(3, 2)
   )
   distance <- as.matrix(stats::dist(points))
-  map <- ctsgimme:::.ctsgimme_subject_distance_coordinates(distance)
+  map <- ctgimme:::.ctgimme_subject_distance_coordinates(distance)
   mapped_distance <- as.matrix(stats::dist(map$points))
 
   expect_gt(stats::cor(distance[upper.tri(distance)],
@@ -80,10 +80,10 @@ test_that("subject map coordinates preserve pairwise proximity", {
 })
 
 test_that("membership artifacts fall back to a roster without distances", {
-  output_directory <- tempfile("ctsgimme-membership-roster-")
+  output_directory <- tempfile("ctgimme-membership-roster-")
   membership <- stats::setNames(c(1L, 1L, 2L), c("A", "B", "C"))
 
-  artifacts <- ctsgimme:::.ctsgimme_write_subgroup_membership(
+  artifacts <- ctgimme:::.ctgimme_write_subgroup_membership(
     membership,
     output_directory
   )

@@ -1,14 +1,14 @@
-.ctsgimme_detect_subgroups_legacy <- function(context, sub.sig.thrsh, conduct) {
+.ctgimme_detect_subgroups_legacy <- function(context, sub.sig.thrsh, conduct) {
   walktrap_comm <- NULL
   if (sub.sig.thrsh == 1.00) {
-    return(.ctsgimme_one_subgroup_result(
+    return(.ctgimme_one_subgroup_result(
       context,
       method = "legacy",
       reason = "Subgroup detection was disabled because sub.sig.thrsh = 1."
     ))
   }
 
-  message("Beginning Subgrouping Stage")
+  .ctgimme_inform(context$verbose, "Beginning subgrouping stage.")
   rdss1 <- mixedsort(list.files(
     file.path(context$directory, "Models"),
     pattern = "^Model_.*\\.RDS$",
@@ -20,13 +20,15 @@
     full.names = TRUE
   ))
   expected_ids <- as.character(context$ids)
+  model_ids <- .ctgimme_artifact_subject_id(rdss1, "Model_")
+  mi_ids <- .ctgimme_artifact_subject_id(rdss2, "MI_")
   rdss1 <- rdss1[
-    gsub("Model_|\\.RDS", "", basename(rdss1)) %in% expected_ids
+    !is.na(model_ids) & model_ids %in% expected_ids
   ]
   rdss2 <- rdss2[
-    gsub("MI_|\\.RDS", "", basename(rdss2)) %in% expected_ids
+    !is.na(mi_ids) & mi_ids %in% expected_ids
   ]
-  mi_ids <- gsub("MI_|\\.RDS", "", basename(rdss2))
+  mi_ids <- .ctgimme_artifact_subject_id(rdss2, "MI_")
   mi_by_id <- setNames(rdss2, mi_ids)
   models <- list()
   feature.weights <- list()
@@ -42,7 +44,7 @@
   )
 
   for (file in seq_along(rdss1)) {
-    model_id <- gsub("Model_|\\.RDS", "", basename(rdss1[file]))
+    model_id <- .ctgimme_artifact_subject_id(rdss1[file], "Model_")
     mi_file <- unname(mi_by_id[model_id])
     if (length(mi_file) == 0 || is.na(mi_file)) next
     temp1 <- tryCatch(readRDS(rdss1[file]), error = function(e) NULL)
@@ -137,7 +139,7 @@
   }
 
   if (length(models) < 2) {
-    return(.ctsgimme_one_subgroup_result(
+    return(.ctgimme_one_subgroup_result(
       context,
       method = "legacy",
       reason = paste0(
@@ -240,7 +242,7 @@
     diag = FALSE
   )
   walktrap_comm <- igraph::cluster_walktrap(g)
-  .ctsgimme_safe_png(
+  .ctgimme_safe_png(
     file.path(context$directory, "walktrap_community_plot.png"),
     {
       plot(
@@ -266,7 +268,7 @@
     )
   }
 
-  attr(walktrap_comm, "ctsgimme.method") <- "legacy"
+  attr(walktrap_comm, "ctgimme.method") <- "legacy"
   list(
     membership = memb,
     clustering = walktrap_comm,

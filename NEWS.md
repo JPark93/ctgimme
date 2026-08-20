@@ -1,3 +1,36 @@
+# ctgimme 0.0.12
+
+- Renamed the package and its complete public identity from `ctsgimme` to
+  `ctgimme`. The primary functions are now `ctgimme()` and `ctgimme_demo()`;
+  internal helper prefixes, returned-object attributes, help aliases, tests,
+  citation metadata, and source archives use the same name. The old function
+  names are not exported.
+- Added the public `verbose` argument. `verbose = FALSE` suppresses package
+  progress messages and captures OpenMx optimizer/progress output, while
+  warnings, errors, returned results, and saved artifacts remain available.
+  Removed the unconditional console print of subgroup membership.
+- Replaced the non-executable wrapped example with a self-contained,
+  timed toy fit that writes below the session temporary directory and always
+  cleans its output.
+- Capped package-managed parallel execution at two workers in all contexts,
+  strengthened documented input and control validation, and guaranteed an
+  extractable membership object when subgroup detection falls back to one
+  group.
+- Added a complete, ID-aligned `ctgimme.membership` attribute to every
+  successful PAM or legacy clustering return; PAM results also retain their
+  direct `membership` element.
+- Propagated the master session's library paths to PSOCK workers and exported
+  the refactored initial-covariance helpers, preventing two-worker fits from
+  failing after an R/library upgrade or during subject-model construction.
+- Hardened subject-artifact handling for portable filesystems: identifiers
+  must be unique without regard to case, generated prefixes/suffixes are
+  decoded literally, wildcard characters are never expanded during cleanup,
+  and failed RDS fallback copies now raise an error.
+- Retained the 0.0.11 multisubject subgroup-model implementation: one shared
+  parameter vector per subgroup, independently initialized subject likelihood
+  blocks, requested `exp(A * delta)` plots, and one
+  `Subgroup_<g>Model.RDS` artifact.
+
 # ctsgimme 0.0.11
 
 - Converted the historical single-file repository into an installable R

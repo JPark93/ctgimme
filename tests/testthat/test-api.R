@@ -1,14 +1,15 @@
 test_that("the public API exposes documented defaults", {
-  api <- formals(ctsgimme)
+  api <- formals(ctgimme)
 
   expect_identical(
-    tail(names(api), 3L),
-    c("scale.data", "ME.free", "PE.free")
+    tail(names(api), 4L),
+    c("scale.data", "ME.free", "PE.free", "verbose")
   )
   expect_identical(eval(api$cores), 1)
   expect_identical(eval(api$scale.data), FALSE)
   expect_identical(eval(api$ME.free), FALSE)
   expect_identical(eval(api$PE.free), FALSE)
+  expect_identical(eval(api$verbose), TRUE)
   expect_identical(eval(api$subgroup.method), c("pam", "legacy"))
   expect_false(any(c(
     "subgroup.model.method",
@@ -20,62 +21,48 @@ test_that("the public API exposes documented defaults", {
   ) %in% names(api)))
 })
 
-test_that("core requests are not unnecessarily capped during ordinary use", {
-  check_setting <- Sys.getenv("_R_CHECK_LIMIT_CORES_", unset = NA_character_)
-  on.exit({
-    if (is.na(check_setting)) {
-      Sys.unsetenv("_R_CHECK_LIMIT_CORES_")
-    } else {
-      do.call(Sys.setenv, setNames(list(check_setting), "_R_CHECK_LIMIT_CORES_"))
-    }
-  }, add = TRUE)
-  Sys.unsetenv("_R_CHECK_LIMIT_CORES_")
+test_that("the renamed namespace exposes only the ctgimme public API", {
+  exports <- getNamespaceExports("ctgimme")
 
-  expect_identical(ctsgimme:::.ctsgimme_resolve_cores(1, 20), 1L)
-  expect_identical(ctsgimme:::.ctsgimme_resolve_cores(2, 20), 2L)
-  expect_identical(ctsgimme:::.ctsgimme_resolve_cores(6, 20), 6L)
+  expect_true("ctgimme" %in% exports)
+  expect_true("ctgimme_demo" %in% exports)
+  expect_false("ctsgimme" %in% exports)
+  expect_false("ctsgimme_demo" %in% exports)
+})
+
+test_that("parallel requests are capped at two and at the subject count", {
+  expect_identical(ctgimme:::.ctgimme_resolve_cores(1, 20), 1L)
+  expect_identical(ctgimme:::.ctgimme_resolve_cores(2, 20), 2L)
   expect_message(
-    expect_identical(ctsgimme:::.ctsgimme_resolve_cores(6, 1), 1L),
+    expect_identical(ctgimme:::.ctgimme_resolve_cores(6, 20), 2L),
+    "package maximum of two",
+    fixed = TRUE
+  )
+  expect_message(
+    expect_identical(ctgimme:::.ctgimme_resolve_cores(6, 1), 1L),
     "number of subjects",
     fixed = TRUE
   )
+  expect_no_message(
+    resolved <- ctgimme:::.ctgimme_resolve_cores(6, 1, verbose = FALSE)
+  )
+  expect_identical(resolved, 1L)
   expect_error(
-    ctsgimme:::.ctsgimme_resolve_cores(0, 20),
+    ctgimme:::.ctgimme_resolve_cores(0, 20),
     "one positive integer",
     fixed = TRUE
   )
 })
 
-test_that("CRAN-style checks limit execution to two workers", {
-  check_setting <- Sys.getenv("_R_CHECK_LIMIT_CORES_", unset = NA_character_)
-  on.exit({
-    if (is.na(check_setting)) {
-      Sys.unsetenv("_R_CHECK_LIMIT_CORES_")
-    } else {
-      do.call(Sys.setenv, setNames(list(check_setting), "_R_CHECK_LIMIT_CORES_"))
-    }
-  }, add = TRUE)
-
-  Sys.setenv("_R_CHECK_LIMIT_CORES_" = "TRUE")
-  expect_message(
-    expect_identical(ctsgimme:::.ctsgimme_resolve_cores(6, 20), 2L),
-    "CRAN-style package checking",
-    fixed = TRUE
+test_that("core-adjustment messages honor verbose", {
+  expect_no_message(
+    resolved <- ctgimme:::.ctgimme_resolve_cores(6, 20, verbose = FALSE)
   )
-
-  Sys.setenv("_R_CHECK_LIMIT_CORES_" = "warn")
-  expect_message(
-    expect_identical(ctsgimme:::.ctsgimme_resolve_cores(6, 20), 2L),
-    "CRAN-style package checking",
-    fixed = TRUE
-  )
-
-  Sys.setenv("_R_CHECK_LIMIT_CORES_" = "false")
-  expect_identical(ctsgimme:::.ctsgimme_resolve_cores(6, 20), 6L)
+  expect_identical(resolved, 2L)
 })
 
 test_that("the quick demo deterministically recovers two subgroups", {
-  result <- ctsgimme_demo()
+  result <- ctgimme_demo()
 
   expect_identical(length(result$membership), 8L)
   expect_identical(unname(result$membership[1:4]), rep(1L, 4))
@@ -85,11 +72,26 @@ test_that("the quick demo deterministically recovers two subgroups", {
 })
 
 test_that("basic invalid inputs fail before estimation", {
-  expect_error(ctsgimme(), "varnames must be supplied", fixed = TRUE)
+  expect_error(ctgimme(), "varnames must be supplied", fixed = TRUE)
+  expect_error(
+    ctgimme(verbose = NA),
+    "verbose must be supplied as TRUE or FALSE",
+    fixed = TRUE
+  )
+  expect_error(
+    ctgimme(verbose = 1),
+    "verbose must be supplied as TRUE or FALSE",
+    fixed = TRUE
+  )
+  expect_error(
+    ctgimme(verbose = c(TRUE, FALSE)),
+    "verbose must be supplied as TRUE or FALSE",
+    fixed = TRUE
+  )
 
   input <- data.frame(id = 1, time = 0, x = 0)
   expect_error(
-    ctsgimme(
+    ctgimme(
       varnames = "x",
       dataframe = input,
       id = "id",
@@ -101,7 +103,7 @@ test_that("basic invalid inputs fail before estimation", {
     fixed = TRUE
   )
   expect_error(
-    ctsgimme(
+    ctgimme(
       varnames = "x",
       dataframe = input,
       id = "id",
@@ -115,8 +117,171 @@ test_that("basic invalid inputs fail before estimation", {
   )
 })
 
+test_that("documented data and control constraints are enforced", {
+  valid <- data.frame(
+    id = rep(c("S1", "S2"), each = 2L),
+    time = rep(0:1, 2L),
+    x = c(1, NA, 2, 3)
+  )
+  expect_invisible(
+    ctgimme:::.ctgimme_validate_inputs(
+      "x", valid, "id", "time", tempfile()
+    )
+  )
+  expect_error(
+    ctgimme:::.ctgimme_validate_inputs(
+      c("x", "x"), valid, "id", "time", tempfile()
+    ),
+    "distinct column names",
+    fixed = TRUE
+  )
+  expect_error(
+    ctgimme:::.ctgimme_validate_inputs(
+      "x", transform(valid, id = ".."), "id", "time", tempfile()
+    ),
+    "safe for use in filenames",
+    fixed = TRUE
+  )
+  case_collision <- transform(
+    valid,
+    id = rep(c("SubjectA", "subjecta"), each = 2L)
+  )
+  expect_error(
+    ctgimme:::.ctgimme_validate_inputs(
+      "x", case_collision, "id", "time", tempfile()
+    ),
+    "distinct when compared without case",
+    fixed = TRUE
+  )
+  unordered <- valid[c(2L, 1L, 3L, 4L), ]
+  expect_error(
+    ctgimme:::.ctgimme_validate_inputs(
+      "x", unordered, "id", "time", tempfile()
+    ),
+    "ordered by time",
+    fixed = TRUE
+  )
+  expect_error(
+    ctgimme:::.ctgimme_validate_inputs(
+      "x", transform(valid, x = as.character(x)), "id", "time", tempfile()
+    ),
+    "must be numeric",
+    fixed = TRUE
+  )
+  expect_error(
+    ctgimme:::.ctgimme_validate_controls(
+      1.1, 1, 0.05, TRUE, 0.05, 0.01, FALSE, TRUE
+    ),
+    "sig.thrsh must be one finite numeric value in [0, 1]",
+    fixed = TRUE
+  )
+  expect_error(
+    ctgimme:::.ctgimme_validate_controls(
+      0.55, 1, 0.05, TRUE, 0.05, 0.01, "FALSE", TRUE
+    ),
+    "keep.intermediate must be supplied as TRUE or FALSE",
+    fixed = TRUE
+  )
+})
+
+test_that("verbose suppresses package progress without changing results", {
+  subject_ids <- c("S1", "S2")
+  membership <- stats::setNames(c(1L, 1L), subject_ids)
+  output_directory <- tempfile("ctgimme-verbose-")
+
+  testthat::local_mocked_bindings(
+    .ctgimme_validate_inputs = function(...) invisible(TRUE),
+    .ctgimme_validate_subgroup_options = function(...) invisible(TRUE),
+    .ctgimme_load_dependencies = function(...) invisible(TRUE),
+    .ctgimme_prepare_context = function(...) {
+      arguments <- list(...)
+      list(
+        directory = output_directory,
+        ids = subject_ids,
+        cores = 1L,
+        verbose = arguments[[length(arguments)]]
+      )
+    },
+    .ctgimme_run_group_stage = function(...) matrix("0", 1, 1),
+    .ctgimme_detect_subgroups = function(...) {
+      list(
+        membership = membership,
+        clustering = NULL,
+        method = "pam",
+        diagnostics = list()
+      )
+    },
+    .ctgimme_write_subgroup_membership = function(...) list(),
+    .ctgimme_save_rds = function(...) invisible(NULL),
+    .ctgimme_run_subgroup_stages = function(...) invisible(NULL),
+    .ctgimme_cleanup = function(...) invisible(NULL),
+    .package = "ctgimme"
+  )
+
+  run <- function(verbose) {
+    ctgimme(
+      varnames = "x",
+      dataframe = data.frame(id = subject_ids, time = 0, x = 0),
+      id = "id",
+      time = "time",
+      directory = output_directory,
+      verbose = verbose
+    )
+  }
+
+  expect_silent(quiet <- run(FALSE))
+  messages <- character()
+  loud <- withCallingHandlers(
+    run(TRUE),
+    message = function(condition) {
+      messages <<- c(messages, conditionMessage(condition))
+      invokeRestart("muffleMessage")
+    }
+  )
+  expect_true(any(grepl("Assigned 2 subject", messages, fixed = TRUE)))
+  expect_true(any(grepl("Complete", messages, fixed = TRUE)))
+  expect_identical(quiet$membership, loud$membership)
+})
+
+test_that("a quiet two-worker public run exports every fitter dependency", {
+  make_series <- function(offset, n = 12L) {
+    values <- numeric(n)
+    values[[1L]] <- 0.2 * offset
+    for (index in 2:n) {
+      values[[index]] <-
+        0.55 * values[[index - 1L]] + sin((index + offset) * 0.7)
+    }
+    values
+  }
+  n_time <- 12L
+  input <- data.frame(
+    id = rep(c("P1", "P2"), each = n_time),
+    time = rep(0:(n_time - 1L), 2L),
+    x = c(make_series(1), make_series(2))
+  )
+  output_directory <- tempfile("ctgimme-real-parallel-")
+  on.exit(unlink(output_directory, recursive = TRUE), add = TRUE)
+
+  expect_silent(
+    result <- ctgimme(
+      varnames = "x",
+      dataframe = input,
+      id = "id",
+      time = "time",
+      cores = 2,
+      directory = output_directory,
+      ME.var = 0.05,
+      PE.var = 1,
+      verbose = FALSE
+    )
+  )
+
+  expect_identical(names(result$membership), c("P1", "P2"))
+  expect_length(result$membership, 2L)
+})
+
 test_that("the public workflow records subgroup membership artifacts", {
-  output_directory <- tempfile("ctsgimme-public-membership-")
+  output_directory <- tempfile("ctgimme-public-membership-")
   subject_ids <- as.character(seq_len(6))
   membership <- stats::setNames(c(1L, 1L, 1L, 2L, 2L, 2L), subject_ids)
   subject_points <- rbind(
@@ -128,14 +293,14 @@ test_that("the public workflow records subgroup membership artifacts", {
   pam_fit <- cluster::pam(subject_distance, k = 2, diss = TRUE)
 
   testthat::local_mocked_bindings(
-    .ctsgimme_validate_inputs = function(...) invisible(TRUE),
-    .ctsgimme_validate_subgroup_options = function(...) invisible(TRUE),
-    .ctsgimme_load_dependencies = function(...) invisible(TRUE),
-    .ctsgimme_prepare_context = function(...) {
+    .ctgimme_validate_inputs = function(...) invisible(TRUE),
+    .ctgimme_validate_subgroup_options = function(...) invisible(TRUE),
+    .ctgimme_load_dependencies = function(...) invisible(TRUE),
+    .ctgimme_prepare_context = function(...) {
       list(directory = output_directory, ids = subject_ids, cores = 1L)
     },
-    .ctsgimme_run_group_stage = function(...) matrix("0", 1, 1),
-    .ctsgimme_detect_subgroups = function(...) {
+    .ctgimme_run_group_stage = function(...) matrix("0", 1, 1),
+    .ctgimme_detect_subgroups = function(...) {
       list(
         membership = membership,
         clustering = pam_fit,
@@ -143,12 +308,12 @@ test_that("the public workflow records subgroup membership artifacts", {
         diagnostics = list(distance = subject_distance)
       )
     },
-    .ctsgimme_run_subgroup_stages = function(...) invisible(NULL),
-    .ctsgimme_cleanup = function(...) invisible(NULL),
-    .package = "ctsgimme"
+    .ctgimme_run_subgroup_stages = function(...) invisible(NULL),
+    .ctgimme_cleanup = function(...) invisible(NULL),
+    .package = "ctgimme"
   )
 
-  result <- ctsgimme(
+  result <- ctgimme(
     varnames = "x",
     dataframe = data.frame(id = subject_ids, time = 0, x = 0),
     id = "id",
@@ -158,10 +323,11 @@ test_that("the public workflow records subgroup membership artifacts", {
     max.subgroups = 2
   )
   detection <- readRDS(file.path(output_directory, "subgroup_detection.rds"))
-  artifacts <- attr(result, "ctsgimme.membership.artifacts")
+  artifacts <- attr(result, "ctgimme.membership.artifacts")
 
   expect_true(file.exists(file.path(output_directory, "Subgroups Plot.png")))
   expect_true(file.exists(file.path(output_directory, "subgroup_membership.csv")))
+  expect_identical(attr(result, "ctgimme.membership"), membership)
   expect_identical(artifacts$plot.type, "distance-map")
   expect_identical(detection$membership, membership)
   expect_identical(detection$diagnostics$membership.artifacts, artifacts)
@@ -178,13 +344,13 @@ test_that("the public workflow reuses and stops one worker cluster", {
   membership <- stats::setNames(c(1L, 1L), subject_ids)
 
   testthat::local_mocked_bindings(
-    .ctsgimme_validate_inputs = function(...) invisible(TRUE),
-    .ctsgimme_validate_subgroup_options = function(...) invisible(TRUE),
-    .ctsgimme_load_dependencies = function(...) invisible(TRUE),
-    .ctsgimme_prepare_context = function(...) {
-      list(directory = tempfile("ctsgimme-pool-test-"), ids = subject_ids, cores = 2L)
+    .ctgimme_validate_inputs = function(...) invisible(TRUE),
+    .ctgimme_validate_subgroup_options = function(...) invisible(TRUE),
+    .ctgimme_load_dependencies = function(...) invisible(TRUE),
+    .ctgimme_prepare_context = function(...) {
+      list(directory = tempfile("ctgimme-pool-test-"), ids = subject_ids, cores = 2L)
     },
-    .ctsgimme_make_worker_cluster = function(cores) {
+    .ctgimme_make_worker_cluster = function(cores) {
       tracker$created <- tracker$created + 1L
       expect_identical(cores, 2L)
       worker_cluster
@@ -194,12 +360,12 @@ test_that("the public workflow reuses and stops one worker cluster", {
       tracker$stopped <- tracker$stopped + 1L
       invisible(NULL)
     },
-    .ctsgimme_run_group_stage = function(
+    .ctgimme_run_group_stage = function(
         context, Galpha, sig.thrsh, worker_cluster = NULL) {
       tracker$group.cluster <- worker_cluster
       matrix("0", 1, 1)
     },
-    .ctsgimme_detect_subgroups = function(...) {
+    .ctgimme_detect_subgroups = function(...) {
       list(
         membership = membership,
         clustering = NULL,
@@ -207,22 +373,22 @@ test_that("the public workflow reuses and stops one worker cluster", {
         diagnostics = list()
       )
     },
-    .ctsgimme_write_subgroup_membership = function(...) list(),
-    .ctsgimme_save_rds = function(...) invisible(NULL),
-    .ctsgimme_run_subgroup_stages = function(..., worker_cluster = NULL) {
+    .ctgimme_write_subgroup_membership = function(...) list(),
+    .ctgimme_save_rds = function(...) invisible(NULL),
+    .ctgimme_run_subgroup_stages = function(..., worker_cluster = NULL) {
       tracker$subgroup.cluster <- worker_cluster
       invisible(NULL)
     },
-    .ctsgimme_cleanup = function(...) invisible(NULL),
-    .package = "ctsgimme"
+    .ctgimme_cleanup = function(...) invisible(NULL),
+    .package = "ctgimme"
   )
 
-  invisible(ctsgimme(
+  invisible(ctgimme(
     varnames = "x",
     dataframe = data.frame(id = subject_ids, time = 0, x = 0),
     id = "id",
     time = "time",
-    directory = tempfile("ctsgimme-pool-output-"),
+    directory = tempfile("ctgimme-pool-output-"),
     cores = 2,
     sub.sig.thrsh = 1
   ))
@@ -240,17 +406,17 @@ test_that("the public workflow stops its worker cluster after an error", {
   worker_cluster <- structure(list(id = "error-cleanup"), class = "mock_cluster")
 
   testthat::local_mocked_bindings(
-    .ctsgimme_validate_inputs = function(...) invisible(TRUE),
-    .ctsgimme_validate_subgroup_options = function(...) invisible(TRUE),
-    .ctsgimme_load_dependencies = function(...) invisible(TRUE),
-    .ctsgimme_prepare_context = function(...) {
+    .ctgimme_validate_inputs = function(...) invisible(TRUE),
+    .ctgimme_validate_subgroup_options = function(...) invisible(TRUE),
+    .ctgimme_load_dependencies = function(...) invisible(TRUE),
+    .ctgimme_prepare_context = function(...) {
       list(
-        directory = tempfile("ctsgimme-error-pool-test-"),
+        directory = tempfile("ctgimme-error-pool-test-"),
         ids = c("1", "2"),
         cores = 2L
       )
     },
-    .ctsgimme_make_worker_cluster = function(cores) {
+    .ctgimme_make_worker_cluster = function(cores) {
       tracker$created <- tracker$created + 1L
       worker_cluster
     },
@@ -259,19 +425,19 @@ test_that("the public workflow stops its worker cluster after an error", {
       tracker$stopped <- tracker$stopped + 1L
       invisible(NULL)
     },
-    .ctsgimme_run_group_stage = function(...) {
+    .ctgimme_run_group_stage = function(...) {
       stop("intentional stage failure")
     },
-    .package = "ctsgimme"
+    .package = "ctgimme"
   )
 
   expect_error(
-    ctsgimme(
+    ctgimme(
       varnames = "x",
       dataframe = data.frame(id = c("1", "2"), time = 0, x = 0),
       id = "id",
       time = "time",
-      directory = tempfile("ctsgimme-error-pool-output-"),
+      directory = tempfile("ctgimme-error-pool-output-"),
       cores = 2,
       sub.sig.thrsh = 1
     ),

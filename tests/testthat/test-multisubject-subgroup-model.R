@@ -12,7 +12,7 @@ multisubject_test_data <- function(reverse_subjects = FALSE) {
 
 test_that("multisubject OU uses one shared parameter vector", {
   input <- multisubject_test_data()
-  model <- ctsgimme:::build_multisubject_ou_model(
+  model <- ctgimme:::build_multisubject_ou_model(
     input,
     id_col = "id",
     drift_matrix = matrix("A_1,1", 1, 1),
@@ -31,9 +31,9 @@ test_that("multisubject OU uses one shared parameter vector", {
     names(OpenMx::omxGetParameters(model)),
     c("OUMod.A[1,1]", "OUMod.Q[1,1]", "OUMod.R[1,1]")
   )
-  expect_identical(attr(model, "ctsgimme.subject.ids"), c("A", "B"))
+  expect_identical(attr(model, "ctgimme.subject.ids"), c("A", "B"))
   expect_identical(
-    attr(model, "ctsgimme.subgroup.likelihood"),
+    attr(model, "ctgimme.subgroup.likelihood"),
     "multisubject"
   )
   expect_equal(as.matrix(model$P0$values), matrix(1, 1, 1))
@@ -51,8 +51,14 @@ test_that("multisubject OU uses one shared parameter vector", {
 })
 
 test_that("multisubject likelihood is a subject-order-invariant sum", {
+  previous_threads <- OpenMx::mxOption(NULL, "Number of Threads")
+  OpenMx::mxOption(NULL, "Number of Threads", 1L)
+  on.exit(
+    OpenMx::mxOption(NULL, "Number of Threads", previous_threads),
+    add = TRUE
+  )
   build_fixed <- function(input) {
-    model <- ctsgimme:::build_multisubject_ou_model(
+    model <- ctgimme:::build_multisubject_ou_model(
       input,
       id_col = "id",
       drift_matrix = matrix("A_1,1", 1, 1),
@@ -79,7 +85,7 @@ test_that("multisubject likelihood is a subject-order-invariant sum", {
 test_that("explicit subgroup P0 values are validated", {
   input <- multisubject_test_data()
   build <- function(P0.values) {
-    ctsgimme:::build_multisubject_ou_model(
+    ctgimme:::build_multisubject_ou_model(
       input,
       id_col = "id",
       drift_matrix = matrix("A_1,1", 1, 1),
@@ -100,7 +106,7 @@ test_that("multisubject blocks reject unordered within-subject times", {
   input$Time[input$id == "B"] <- c(10, 12, 11, 13)
 
   expect_error(
-    ctsgimme:::build_multisubject_ou_model(
+    ctgimme:::build_multisubject_ou_model(
       input,
       id_col = "id",
       drift_matrix = matrix("A_1,1", 1, 1),
@@ -124,15 +130,16 @@ test_that("optional subgroup model construction failures are contained", {
     PE.var = matrix(1, 1, 1),
     ME.free = matrix(FALSE, 1, 1),
     PE.free = matrix(FALSE, 1, 1),
-    time_col = "Time"
+    time_col = "Time",
+    verbose = FALSE
   )
   testthat::local_mocked_bindings(
     build_multisubject_ou_model = function(...) stop("intentional build failure"),
-    .package = "ctsgimme"
+    .package = "ctgimme"
   )
 
-  expect_message(
-    result <- ctsgimme:::.ctsgimme_fit_subgroup_model(
+  expect_warning(
+    result <- ctgimme:::.ctgimme_fit_subgroup_model(
       context = context,
       new.data = multisubject_test_data(),
       DRIFT = matrix("A_1,1", 1, 1),
@@ -148,19 +155,19 @@ test_that("optional subgroup model construction failures are contained", {
 })
 
 test_that("subgroup transition intervals are validated", {
-  expect_invisible(ctsgimme:::.ctsgimme_validate_time_intervals(c(0, 0.5, 2)))
+  expect_invisible(ctgimme:::.ctgimme_validate_time_intervals(c(0, 0.5, 2)))
   expect_error(
-    ctsgimme:::.ctsgimme_validate_time_intervals(numeric()),
+    ctgimme:::.ctgimme_validate_time_intervals(numeric()),
     "nonempty numeric vector",
     fixed = TRUE
   )
   expect_error(
-    ctsgimme:::.ctsgimme_validate_time_intervals(c(1, -0.5)),
+    ctgimme:::.ctgimme_validate_time_intervals(c(1, -0.5)),
     "nonnegative",
     fixed = TRUE
   )
   expect_error(
-    ctsgimme:::.ctsgimme_validate_time_intervals(c(1, Inf)),
+    ctgimme:::.ctgimme_validate_time_intervals(c(1, Inf)),
     "finite",
     fixed = TRUE
   )
@@ -179,7 +186,7 @@ test_that("directed subgroup plot labels and colors follow plotted edges", {
   group_drift <- matrix("0", 2, 2)
   group_drift[2, 1] <- "A_2,1"
 
-  components <- ctsgimme:::.ctsgimme_subgroup_plot_components(
+  components <- ctgimme:::.ctgimme_subgroup_plot_components(
     parameters,
     drift,
     group_drift,
@@ -223,20 +230,23 @@ test_that("real multisubject subgroup fit writes every requested artifact", {
     PE.var = matrix(0.5, 1, 1),
     ME.free = matrix(FALSE, 1, 1),
     PE.free = matrix(FALSE, 1, 1),
-    time_col = "Time"
+    time_col = "Time",
+    verbose = FALSE
   )
-  output_directory <- tempfile("ctsgimme-real-subgroup-")
+  output_directory <- tempfile("ctgimme-real-subgroup-")
   dir.create(output_directory)
   on.exit(unlink(output_directory, recursive = TRUE), add = TRUE)
 
-  fit <- ctsgimme:::.ctsgimme_fit_subgroup_model(
-    context = context,
-    new.data = input,
-    DRIFT = matrix("A_1,1", 1, 1),
-    G.DRIFT = matrix("0", 1, 1),
-    subgroup = 7L,
-    subgroup_dir = output_directory,
-    time.intervals = c(0.5, 2)
+  expect_silent(
+    fit <- ctgimme:::.ctgimme_fit_subgroup_model(
+      context = context,
+      new.data = input,
+      DRIFT = matrix("A_1,1", 1, 1),
+      G.DRIFT = matrix("0", 1, 1),
+      subgroup = 7L,
+      subgroup_dir = output_directory,
+      time.intervals = c(0.5, 2)
+    )
   )
   paths <- file.path(output_directory, c(
     "Subgroup 7 Params.png",
@@ -256,9 +266,9 @@ test_that("real multisubject subgroup fit writes every requested artifact", {
   expect_s4_class(fit, "MxModel")
   expect_s4_class(saved, "MxModel")
   expect_equal(saved$output$status$code, 0)
-  expect_identical(attr(saved, "ctsgimme.subject.ids"), c("A", "B", "C"))
+  expect_identical(attr(saved, "ctgimme.subject.ids"), c("A", "B", "C"))
   expect_identical(
-    attr(saved, "ctsgimme.subgroup.likelihood"),
+    attr(saved, "ctgimme.subgroup.likelihood"),
     "multisubject"
   )
   expect_length(saved@submodels, 3L)

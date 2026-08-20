@@ -1,4 +1,4 @@
-.ctsgimme_extract_subgroup_score_features <- function(context, group_drift) {
+.ctgimme_extract_subgroup_score_features <- function(context, group_drift) {
   ids <- as.character(context$ids)
   features <- matrix(
     0,
@@ -55,7 +55,7 @@
 
   cells <- t(vapply(
     context$param_names,
-    .ctsgimme_get_cells,
+    .ctgimme_get_cells,
     numeric(2)
   ))
   is_diagonal <- cells[, 1] == cells[, 2]
@@ -72,7 +72,7 @@
   )
 }
 
-.ctsgimme_robust_scale_subgroup_features <- function(features, clip = 5) {
+.ctgimme_robust_scale_subgroup_features <- function(features, clip = 5) {
   center <- apply(features, 2, stats::median, na.rm = TRUE)
   spread <- apply(features, 2, stats::mad, na.rm = TRUE)
   fallback <- apply(features, 2, stats::sd, na.rm = TRUE)
@@ -95,7 +95,7 @@
   )
 }
 
-.ctsgimme_select_recurrent_subgroup_features <- function(
+.ctgimme_select_recurrent_subgroup_features <- function(
     features, subject_alpha = 0.05, feature_fdr = 0.05) {
   if (!is.matrix(features)) features <- as.matrix(features)
   if (!nrow(features) || !ncol(features)) {
@@ -150,12 +150,12 @@
   )
 }
 
-.ctsgimme_subgroup_manhattan_distance <- function(scaled_features) {
+.ctgimme_subgroup_manhattan_distance <- function(scaled_features) {
   distance <- as.matrix(stats::dist(scaled_features, method = "manhattan"))
   distance / ncol(scaled_features)
 }
 
-.ctsgimme_choose_pam_by_silhouette <- function(distance_matrix, k_values) {
+.ctgimme_choose_pam_by_silhouette <- function(distance_matrix, k_values) {
   n <- nrow(distance_matrix)
   k_values <- sort(unique(suppressWarnings(as.integer(k_values))))
   k_values <- k_values[is.finite(k_values) & k_values >= 2L & k_values < n]
@@ -178,8 +178,8 @@
   best <- which.max(widths)
   selected <- fits[[best]]
   names(selected$clustering) <- rownames(distance_matrix)
-  attr(selected, "ctsgimme.method") <- "pam"
-  attr(selected, "ctsgimme.candidate.silhouettes") <- stats::setNames(
+  attr(selected, "ctgimme.method") <- "pam"
+  attr(selected, "ctgimme.candidate.silhouettes") <- stats::setNames(
     widths,
     k_values
   )
@@ -195,11 +195,11 @@
   )
 }
 
-.ctsgimme_detect_subgroups_pam <- function(
+.ctgimme_detect_subgroups_pam <- function(
     context, group_drift, max.subgroups) {
-  evidence <- .ctsgimme_extract_subgroup_score_features(context, group_drift)
+  evidence <- .ctgimme_extract_subgroup_score_features(context, group_drift)
   if (length(evidence$kept.ids) < 3L) {
-    return(.ctsgimme_one_subgroup_result(
+    return(.ctgimme_one_subgroup_result(
       context,
       method = "pam",
       reason = paste0(
@@ -211,11 +211,11 @@
   }
 
   scaled <- tryCatch(
-    .ctsgimme_select_recurrent_subgroup_features(evidence$features),
+    .ctgimme_select_recurrent_subgroup_features(evidence$features),
     error = function(e) e
   )
   if (inherits(scaled, "error")) {
-    return(.ctsgimme_one_subgroup_result(
+    return(.ctgimme_one_subgroup_result(
       context,
       method = "pam",
       reason = paste0(
@@ -226,9 +226,9 @@
     ))
   }
 
-  distance <- .ctsgimme_subgroup_manhattan_distance(scaled$scaled)
+  distance <- .ctgimme_subgroup_manhattan_distance(scaled$scaled)
   maximum_k <- min(as.integer(max.subgroups), nrow(distance) - 1L)
-  selected <- .ctsgimme_choose_pam_by_silhouette(
+  selected <- .ctgimme_choose_pam_by_silhouette(
     distance,
     seq.int(2L, maximum_k)
   )
@@ -247,7 +247,7 @@
     )
   }
 
-  .ctsgimme_safe_png(
+  .ctgimme_safe_png(
     file.path(context$directory, "pam_silhouette_selection.png"),
     {
       colors <- ifelse(selected$candidates$selected, "#2166AC", "#BDBDBD")

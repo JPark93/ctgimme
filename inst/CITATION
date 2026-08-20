@@ -1,9 +1,9 @@
-citHeader("To cite ctsgimme and its methodological basis, use:")
+citHeader("To cite ctgimme and its methodological basis, use:")
 
 bibentry(
   bibtype = "Manual",
   title = paste(
-    "ctsgimme: Continuous-Time Subgrouping with Group Iterative",
+    "ctgimme: Continuous-Time Subgrouping with Group Iterative",
     "Multiple Model Estimation"
   ),
   author = c(

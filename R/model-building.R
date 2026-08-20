@@ -11,7 +11,10 @@ safe_read_vector <- function(file, element, param_names) {
     }
     vec
   }, error = function(e) {
-    message("Failed to read ", element, " from ", file, ": ", e$message)
+    warning(
+      "Failed to read ", element, " from ", file, ": ", e$message,
+      call. = FALSE
+    )
     return(NULL)
   })
 
@@ -25,7 +28,7 @@ safe_read_vector <- function(file, element, param_names) {
 
 
 # Scale subject-level data robustly
-ctsgimme_safe_scale <- function(x) {
+ctgimme_safe_scale <- function(x) {
   mat = as.matrix(x)
   means = colMeans(mat, na.rm = TRUE)
   sds = apply(mat, 2, sd, na.rm = TRUE)
@@ -77,7 +80,7 @@ make_threshold_sequence <- function(m, alpha, ben_hoch = TRUE) {
   return(ks)
 }
 
-.ctsgimme_initial_covariance <- function(data, varnames, ME.var) {
+.ctgimme_initial_covariance <- function(data, varnames, ME.var) {
   observed = as.matrix(data[, varnames, drop = FALSE])
   p0_values = if (nrow(observed) >= 2L) {
     empirical = stats::cov(observed, use = "pairwise.complete.obs")
@@ -101,10 +104,10 @@ make_threshold_sequence <- function(m, alpha, ben_hoch = TRUE) {
   (p0_values + t(p0_values)) / 2
 }
 
-.ctsgimme_resolve_initial_covariance <- function(
+.ctgimme_resolve_initial_covariance <- function(
     data, varnames, ME.var, P0.values = NULL) {
   if (is.null(P0.values)) {
-    return(.ctsgimme_initial_covariance(data, varnames, ME.var))
+    return(.ctgimme_initial_covariance(data, varnames, ME.var))
   }
   P0.values = as.matrix(P0.values)
   nvar = length(varnames)
@@ -126,6 +129,7 @@ build_ou_model <- function(data, drift_matrix, nvar, varnames, ME.var, PE.var,
                            ME.free = FALSE, PE.free = FALSE,
                            model_name = "OUMod", lb = -Inf, ub = Inf,
                            time_col = "Time", P0.values = NULL) {
+  model_data = data[, c(time_col, varnames), drop = FALSE]
   amat = mxMatrix("Full", nvar, nvar,
                   free   = drift_matrix != "0",
                   name   = "A",
@@ -137,7 +141,7 @@ build_ou_model <- function(data, drift_matrix, nvar, varnames, ME.var, PE.var,
   qmat = mxMatrix('Diag', nvar, nvar, PE.free, PE.var, name='Q', lbound = 1e-5)
   rmat = mxMatrix('Diag', nvar, nvar, ME.free, ME.var, name='R', lbound = 0)
   xmat = mxMatrix('Full', nvar, 1, FALSE, rep(0, nvar), name='x0')
-  p0_values = .ctsgimme_resolve_initial_covariance(
+  p0_values = .ctgimme_resolve_initial_covariance(
     data,
     varnames,
     ME.var,
@@ -152,7 +156,7 @@ build_ou_model <- function(data, drift_matrix, nvar, varnames, ME.var, PE.var,
           mxExpectationSSCT('A', 'B', 'C', 'D', 'Q',
                             'R', 'x0', 'P0', 'u', 'time'),
           mxFitFunctionML(),
-          mxData(data, 'raw'))
+          mxData(model_data, 'raw'))
 }
 
 # Construct one shared-parameter OU model with an independent filter per subject.
@@ -199,7 +203,7 @@ build_multisubject_ou_model <- function(
   # Use one common fixed initialization for all independent filters. This
   # preserves the one-subgroup-model interpretation and makes the only
   # subject-specific element the observed trajectory itself.
-  p0_values = .ctsgimme_resolve_initial_covariance(
+  p0_values = .ctgimme_resolve_initial_covariance(
     data,
     varnames,
     ME.var,
@@ -267,7 +271,7 @@ build_multisubject_ou_model <- function(
     children,
     mxFitFunctionMultigroup(paste0(child_names, ".fitfunction"))
   )
-  attr(model, "ctsgimme.subject.ids") = as.character(ids)
-  attr(model, "ctsgimme.subgroup.likelihood") = "multisubject"
+  attr(model, "ctgimme.subject.ids") = as.character(ids)
+  attr(model, "ctgimme.subgroup.likelihood") = "multisubject"
   model
 }

@@ -2,23 +2,147 @@
 # Input validation, run context, and file helpers
 # ============================================================================
 
-.ctsgimme_validate_inputs <- function(varnames, dataframe, id, time, directory) {
+.ctgimme_inform <- function(verbose, ...) {
+  if (isTRUE(verbose)) {
+    message(...)
+  }
+  invisible(NULL)
+}
+
+.ctgimme_mx_try_hard <- function(model, verbose = TRUE, ...) {
+  run <- function() {
+    # OpenMx uses its interactive progress callback when `silent = TRUE`.
+    # Keep that callback disabled and suppress/capture the ordinary reporting
+    # at this package boundary when the user requests a quiet run.
+    optimizer_silent <- FALSE
+    OpenMx::mxTryHard(
+      model,
+      ...,
+      silent = optimizer_silent
+    )
+  }
+  if (isTRUE(verbose)) {
+    run()
+  } else {
+    result <- NULL
+    invisible(utils::capture.output(
+      result <- suppressMessages(run()),
+      type = "output"
+    ))
+    result
+  }
+}
+
+.ctgimme_validate_inputs <- function(varnames, dataframe, id, time, directory) {
   if (is.null(varnames)) stop("varnames must be supplied.")
   if (is.null(dataframe)) stop("dataframe must be supplied.")
   if (is.null(id)) stop("id must be supplied.")
   if (is.null(time)) stop("time must be supplied.")
   if (is.null(directory)) stop("directory must be supplied.")
   if (!is.data.frame(dataframe)) stop("dataframe must be a data.frame.")
+  if (!nrow(dataframe)) stop("dataframe must contain at least one row.")
+  valid_name <- function(value) {
+    is.character(value) && length(value) == 1L && !is.na(value) &&
+      nzchar(value)
+  }
+  if (!valid_name(id)) stop("id must be one nonempty column name.")
+  if (!valid_name(time)) stop("time must be one nonempty column name.")
+  if (identical(id, time)) stop("id and time must name different columns.")
+  if (!is.character(varnames) || !length(varnames) || anyNA(varnames) ||
+      any(!nzchar(varnames)) || anyDuplicated(varnames)) {
+    stop("varnames must be a nonempty character vector of distinct column names.")
+  }
+  if (any(varnames %in% c(id, time, "Time"))) {
+    stop("varnames must not include the id, time, or reserved Time column.")
+  }
+  if (!valid_name(directory)) {
+    stop("directory must be one nonempty path.")
+  }
   if (!id %in% names(dataframe)) stop("id column not found in dataframe.")
   if (!time %in% names(dataframe)) stop("time column not found in dataframe.")
   missing.vars <- setdiff(varnames, names(dataframe))
   if (length(missing.vars)) {
-    stop("Variables not found in dataframe: ", paste(missing.vars, collapse = ", "))
+      stop("Variables not found in dataframe: ", paste(missing.vars, collapse = ", "))
+  }
+
+  identifiers <- dataframe[[id]]
+  if (anyNA(identifiers)) stop("Subject identifiers must not be missing.")
+  identifier_text <- as.character(identifiers)
+  unsafe_identifier <- !nzchar(identifier_text) |
+    identifier_text %in% c(".", "..") |
+    grepl("[<>:\"/\\\\|?*[:cntrl:]]", identifier_text) |
+    grepl("[ .]$", identifier_text)
+  if (any(unsafe_identifier)) {
+    stop(
+      "Subject identifiers must be nonempty and safe for use in filenames."
+    )
+  }
+  unique_identifiers <- unique(identifier_text)
+  if (anyDuplicated(tolower(unique_identifiers))) {
+    stop(
+      "Subject identifiers must be distinct when compared without case."
+    )
+  }
+
+  observed_time <- dataframe[[time]]
+  if (!is.numeric(observed_time) || anyNA(observed_time) ||
+      any(!is.finite(observed_time))) {
+    stop("The time column must contain only finite numeric values.")
+  }
+  subject_rows <- split(seq_len(nrow(dataframe)), identifier_text)
+  if (any(vapply(
+    subject_rows,
+    function(index) is.unsorted(observed_time[index]),
+    logical(1)
+  ))) {
+    stop("Rows must be ordered by time within each subject.")
+  }
+
+  invalid_variables <- vapply(varnames, function(variable) {
+    values <- dataframe[[variable]]
+    !is.numeric(values) || any(!is.finite(values[!is.na(values)]))
+  }, logical(1))
+  if (any(invalid_variables)) {
+    stop(
+      "Process variables must be numeric and all observed values must be finite: ",
+      paste(varnames[invalid_variables], collapse = ", ")
+    )
   }
   invisible(TRUE)
 }
 
-.ctsgimme_validate_subgroup_options <- function(
+.ctgimme_validate_controls <- function(
+    sig.thrsh, sub.sig.thrsh, Galpha, ben.hoch, S.Galpha, Ialpha,
+    keep.intermediate, conduct) {
+  probabilities <- list(
+    sig.thrsh = sig.thrsh,
+    sub.sig.thrsh = sub.sig.thrsh,
+    Galpha = Galpha,
+    S.Galpha = S.Galpha,
+    Ialpha = Ialpha
+  )
+  for (argument in names(probabilities)) {
+    value <- probabilities[[argument]]
+    valid <- is.numeric(value) && length(value) == 1L && !is.na(value) &&
+      is.finite(value) && value >= 0 && value <= 1
+    if (!valid) stop(argument, " must be one finite numeric value in [0, 1].")
+  }
+
+  logical_values <- list(
+    ben.hoch = ben.hoch,
+    keep.intermediate = keep.intermediate,
+    conduct = conduct
+  )
+  for (argument in names(logical_values)) {
+    value <- logical_values[[argument]]
+    if (!is.logical(value) || length(value) != 1L || is.na(value)) {
+      stop(argument, " must be supplied as TRUE or FALSE.")
+    }
+  }
+  invisible(TRUE)
+}
+
+.ctgimme_validate_subgroup_options <- function(
     sub.sig.thrsh, subgroup.method, max.subgroups) {
   if (sub.sig.thrsh == 1.00 || !identical(subgroup.method, "pam")) {
     return(invisible(TRUE))
@@ -39,7 +163,7 @@
   invisible(TRUE)
 }
 
-.ctsgimme_validate_time_intervals <- function(time.intervals) {
+.ctgimme_validate_time_intervals <- function(time.intervals) {
   valid <- is.numeric(time.intervals) &&
     length(time.intervals) >= 1L &&
     !anyNA(time.intervals) &&
@@ -51,7 +175,7 @@
   invisible(TRUE)
 }
 
-.ctsgimme_resolve_cores <- function(cores, subject_count) {
+.ctgimme_resolve_cores <- function(cores, subject_count, verbose = TRUE) {
   valid_cores <- length(cores) == 1L &&
     is.numeric(cores) &&
     !is.na(cores) &&
@@ -64,63 +188,74 @@
   }
 
   requested <- as.integer(cores)
-  resolved <- min(requested, as.integer(subject_count))
-  if (resolved < requested) {
-    message("Cores adjusted to the number of subjects.")
+  subject_limited <- min(requested, as.integer(subject_count))
+  if (subject_limited < requested) {
+    .ctgimme_inform(verbose, "Cores adjusted to the number of subjects.")
   }
 
-  check_limit <- tolower(Sys.getenv("_R_CHECK_LIMIT_CORES_", unset = ""))
-  limit_during_check <- nzchar(check_limit) && check_limit != "false"
-  if (limit_during_check && resolved > 2L) {
-    resolved <- 2L
-    message("Cores adjusted to two for CRAN-style package checking.")
+  resolved <- min(subject_limited, 2L)
+  if (resolved < subject_limited) {
+    .ctgimme_inform(
+      verbose,
+      "Cores adjusted to the package maximum of two."
+    )
   }
 
   max(1L, resolved)
 }
 
-.ctsgimme_worker_registry <- local({
+.ctgimme_worker_registry <- local({
   registry <- new.env(parent = emptyenv())
   registry$next_id <- 0L
   registry
 })
 
-.ctsgimme_register_worker_cluster <- function(cluster) {
+.ctgimme_register_worker_cluster <- function(cluster) {
   pids <- as.integer(unlist(parallel::clusterCall(cluster, Sys.getpid)))
   handles <- lapply(pids, ps::ps_handle)
 
-  .ctsgimme_worker_registry$next_id <-
-    .ctsgimme_worker_registry$next_id + 1L
+  .ctgimme_worker_registry$next_id <-
+    .ctgimme_worker_registry$next_id + 1L
   key <- paste(
     Sys.getpid(),
-    .ctsgimme_worker_registry$next_id,
+    .ctgimme_worker_registry$next_id,
     sep = ":"
   )
   assign(
     key,
     list(pids = pids, handles = handles),
-    envir = .ctsgimme_worker_registry
+    envir = .ctgimme_worker_registry
   )
-  attr(cluster, "ctsgimme.worker.key") <- key
+  attr(cluster, "ctgimme.worker.key") <- key
   cluster
 }
 
-.ctsgimme_make_worker_cluster <- function(cores) {
-  cores <- as.integer(cores)
+.ctgimme_make_worker_cluster <- function(cores) {
+  cores <- min(as.integer(cores), 2L)
   if (cores <= 1L) return(NULL)
 
   # Package loading is one of the largest fixed costs on Windows. Keep these
   # PSOCK sessions alive across group, subgroup, and individual fitting batches
-  # so that initialization is paid once per CTSGIMME analysis.
+  # so that initialization is paid once per CTGIMME analysis.
   cluster <- makeCluster(cores, type = "PSOCK")
   initialized <- FALSE
   on.exit({
     if (!initialized) {
-      .ctsgimme_stop_worker_cluster(cluster)
+      .ctgimme_stop_worker_cluster(cluster)
     }
   }, add = TRUE)
 
-  cluster <- .ctsgimme_register_worker_cluster(cluster)
+  cluster <- .ctgimme_register_worker_cluster(cluster)
+
+  # PSOCK workers can read a stale user-level R_LIBS_USER setting (for
+  # example, after R has been upgraded) even though the master session is
+  # using the correct library tree. Propagate the master's resolved library
+  # paths before loading worker dependencies.
+  master_library_paths <- .libPaths()
+  parallel::clusterCall(cluster, function(paths) {
+    .libPaths(paths)
+    invisible(.libPaths())
+  }, master_library_paths)
 
   status <- clusterEvalQ(cluster, {
     packages <- c("OpenMx", "qgraph")
@@ -141,20 +276,20 @@
     TRUE
   })
   if (!all(vapply(status, isTRUE, logical(1)))) {
-    stop("One or more CTSGIMME workers failed to initialize.")
+    stop("One or more CTGIMME workers failed to initialize.")
   }
 
   initialized <- TRUE
   cluster
 }
 
-.ctsgimme_stop_worker_cluster <- function(cluster) {
+.ctgimme_stop_worker_cluster <- function(cluster) {
   if (is.null(cluster)) return(invisible(NULL))
 
-  key <- attr(cluster, "ctsgimme.worker.key", exact = TRUE)
+  key <- attr(cluster, "ctgimme.worker.key", exact = TRUE)
   record <- if (!is.null(key) &&
-      exists(key, envir = .ctsgimme_worker_registry, inherits = FALSE)) {
-    get(key, envir = .ctsgimme_worker_registry, inherits = FALSE)
+      exists(key, envir = .ctgimme_worker_registry, inherits = FALSE)) {
+    get(key, envir = .ctgimme_worker_registry, inherits = FALSE)
   } else {
     NULL
   }
@@ -192,14 +327,14 @@
   }
 
   if (!is.null(key) &&
-      exists(key, envir = .ctsgimme_worker_registry, inherits = FALSE)) {
-    rm(list = key, envir = .ctsgimme_worker_registry)
+      exists(key, envir = .ctgimme_worker_registry, inherits = FALSE)) {
+    rm(list = key, envir = .ctgimme_worker_registry)
   }
 
   if (!all_stopped) {
     tryCatch(
       warning(
-        "One or more CTSGIMME workers remained alive after forced shutdown.",
+        "One or more CTGIMME workers remained alive after forced shutdown.",
         call. = FALSE
       ),
       error = function(error) invisible(NULL)
@@ -207,7 +342,7 @@
   } else if (!is.null(graceful_error) || forced) {
     tryCatch(
       warning(
-        "Graceful CTSGIMME worker shutdown failed; surviving workers were ",
+        "Graceful CTGIMME worker shutdown failed; surviving workers were ",
         "force-terminated.",
         call. = FALSE
       ),
@@ -218,7 +353,7 @@
   invisible(all_stopped)
 }
 
-.ctsgimme_load_dependencies <- function(
+.ctgimme_load_dependencies <- function(
     conduct, sub.sig.thrsh, subgroup.method = "pam", subgroup.model = FALSE) {
   if (sub.sig.thrsh != 1.00 && identical(subgroup.method, "pam") &&
       !requireNamespace("cluster", quietly = TRUE)) {
@@ -242,7 +377,7 @@
   invisible(TRUE)
 }
 
-.ctsgimme_diagonal_free_mask <- function(mask, nvar, argument) {
+.ctgimme_diagonal_free_mask <- function(mask, nvar, argument) {
   valid_scalar <- is.logical(mask) && length(mask) == 1L && !is.na(mask)
   if (valid_scalar) {
     return(diag(mask, nvar))
@@ -271,7 +406,7 @@
   )
 }
 
-.ctsgimme_diagonal_variance_values <- function(
+.ctgimme_diagonal_variance_values <- function(
     values, nvar, argument, default = NULL) {
   if (is.null(values) && !is.null(default)) {
     values <- default
@@ -301,19 +436,19 @@
   diag(diagonal, nvar)
 }
 
-.ctsgimme_prepare_context <- function(
+.ctgimme_prepare_context <- function(
     varnames, dataframe, id, time, cores, directory, ME.var, PE.var,
-    ben.hoch, ME.free = FALSE, PE.free = FALSE) {
+    ben.hoch, ME.free = FALSE, PE.free = FALSE, verbose = TRUE) {
   nvar <- length(varnames)
-  ME.var <- .ctsgimme_diagonal_variance_values(ME.var, nvar, "ME.var")
-  PE.var <- .ctsgimme_diagonal_variance_values(
+  ME.var <- .ctgimme_diagonal_variance_values(ME.var, nvar, "ME.var")
+  PE.var <- .ctgimme_diagonal_variance_values(
     PE.var,
     nvar,
     "PE.var",
     default = diag(1, nvar)
   )
-  ME.free <- .ctsgimme_diagonal_free_mask(ME.free, nvar, "ME.free")
-  PE.free <- .ctsgimme_diagonal_free_mask(PE.free, nvar, "PE.free")
+  ME.free <- .ctgimme_diagonal_free_mask(ME.free, nvar, "ME.free")
+  PE.free <- .ctgimme_diagonal_free_mask(PE.free, nvar, "PE.free")
   if (any(diag(ME.var)[diag(ME.free)] < 1e-8)) {
     stop("Free ME.var starting values must be at least 1e-8.")
   }
@@ -331,7 +466,7 @@
   time_col <- "Time"
   ids <- unique(dataframe[[id]])
 
-  cores <- .ctsgimme_resolve_cores(cores, length(ids))
+  cores <- .ctgimme_resolve_cores(cores, length(ids), verbose = verbose)
 
   list(
     varnames = varnames,
@@ -347,23 +482,43 @@
     PE.var = PE.var,
     ME.free = ME.free,
     PE.free = PE.free,
+    verbose = verbose,
     ben.hoch = ben.hoch,
     param_names = compute_param_names(nvar, model_name = "OUMod")
   )
 }
 
-.ctsgimme_save_rds <- function(object, file) {
+.ctgimme_save_rds <- function(object, file) {
   dir.create(dirname(file), recursive = TRUE, showWarnings = FALSE)
   tmp <- tempfile(pattern = paste0(".", basename(file), "_"), tmpdir = dirname(file))
+  on.exit({
+    if (file.exists(tmp)) {
+      unlink(tmp, force = TRUE, expand = FALSE)
+    }
+  }, add = TRUE)
   saveRDS(object, tmp)
   if (!file.rename(tmp, file)) {
-    file.copy(tmp, file, overwrite = TRUE)
-    unlink(tmp)
+    copied <- file.copy(tmp, file, overwrite = TRUE)
+    if (length(copied) != 1L || !isTRUE(copied)) {
+      stop("Failed to save RDS artifact: ", file)
+    }
   }
   invisible(file)
 }
 
-.ctsgimme_safe_png <- function(filename, expr, width = 800, height = 800) {
+.ctgimme_artifact_subject_id <- function(paths, prefix) {
+  filenames <- basename(paths)
+  matched <- startsWith(filenames, prefix) & endsWith(filenames, ".RDS")
+  identifiers <- rep(NA_character_, length(filenames))
+  identifiers[matched] <- substr(
+    filenames[matched],
+    nchar(prefix) + 1L,
+    nchar(filenames[matched]) - nchar(".RDS")
+  )
+  identifiers
+}
+
+.ctgimme_safe_png <- function(filename, expr, width = 800, height = 800) {
   dir.create(dirname(filename), recursive = TRUE, showWarnings = FALSE)
   device <- NULL
   success <- FALSE
@@ -375,20 +530,20 @@
       success <- TRUE
     },
     error = function(e) {
-      message("Plot failed for ", filename, ": ", e$message)
+      warning("Plot failed for ", filename, ": ", e$message, call. = FALSE)
     },
     finally = {
       if (!is.null(device) && device %in% grDevices::dev.list()) {
         grDevices::dev.off(device)
       }
       if (!success && file.exists(filename)) {
-        unlink(filename)
+        unlink(filename, force = TRUE, expand = FALSE)
       }
     }
   )
   invisible(if (success) filename else NULL)
 }
 
-.ctsgimme_get_cells <- function(x) {
+.ctgimme_get_cells <- function(x) {
   as.numeric(unlist(regmatches(x, gregexpr("\\d+", x))))[1:2]
 }
