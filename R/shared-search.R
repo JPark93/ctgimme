@@ -1,4 +1,4 @@
-.ctsgimme_fit_subjects <- function(
+.ctgimme_fit_subjects <- function(
     context, data_for_fit, subject_ids, DRIFT, model_dir_out,
     save_models = TRUE,
     mi_dir_out = file.path(context$directory, "MIs"),
@@ -27,7 +27,7 @@
     ]
     if (!nrow(subset_dat)) return(NULL)
     analysis_result <- tryCatch({
-      OpenMx::mxTryHard(
+      .ctgimme_mx_try_hard(
         build_ou_model(
           subset_dat, DRIFT, context$nvar, context$varnames,
           context$ME.var, context$PE.var,
@@ -35,22 +35,22 @@
           model_name = "OUMod", lb = -10, ub = 10,
           time_col = context$time_col
         ),
-        silent = FALSE
+        context$verbose
       )
     }, error = function(e) {
-      message("Error for subject ", i, ": ", e$message)
+      warning("Error for subject ", i, ": ", e$message, call. = FALSE)
       NULL
     })
     if (!is.null(analysis_result)) {
       MIs <- tryCatch(OpenMx::mxMI(analysis_result, matrices = "A"), error = function(e) {
-        message("MI error for subject ", i, ": ", e$message)
+        warning("MI error for subject ", i, ": ", e$message, call. = FALSE)
         NULL
       })
       if (!is.null(MIs)) {
-        .ctsgimme_save_rds(MIs, file.path(mi_dir_out, paste0("MI_", i, ".RDS")))
+        .ctgimme_save_rds(MIs, file.path(mi_dir_out, paste0("MI_", i, ".RDS")))
       }
       if (isTRUE(save_models)) {
-        .ctsgimme_save_rds(
+        .ctgimme_save_rds(
           analysis_result,
           file.path(model_dir_out, paste0("Model_", i, ".RDS"))
         )
@@ -64,17 +64,19 @@
   } else {
     owns_cluster <- is.null(worker_cluster)
     cl <- if (owns_cluster) {
-      .ctsgimme_make_worker_cluster(min(context$cores, length(subject_ids)))
+      .ctgimme_make_worker_cluster(min(context$cores, length(subject_ids)))
     } else {
       worker_cluster
     }
     if (owns_cluster) {
-      on.exit(.ctsgimme_stop_worker_cluster(cl), add = TRUE)
+      on.exit(.ctgimme_stop_worker_cluster(cl), add = TRUE)
     }
     clusterExport(
       cl,
       c(
-        "fit_one", "build_ou_model", ".ctsgimme_save_rds"
+        "fit_one", "build_ou_model", ".ctgimme_save_rds",
+        ".ctgimme_mx_try_hard", ".ctgimme_resolve_initial_covariance",
+        ".ctgimme_initial_covariance"
       ),
       envir = environment()
     )
@@ -82,15 +84,16 @@
   }
 }
 
-.ctsgimme_read_mi_stack <- function(context, valid_ids = NULL) {
+.ctgimme_read_mi_stack <- function(context, valid_ids = NULL) {
   rdss <- list.files(
     file.path(context$directory, "MIs"),
     pattern = "\\.RDS$",
     full.names = TRUE
   )
   if (!is.null(valid_ids)) {
+    artifact_ids <- .ctgimme_artifact_subject_id(rdss, "MI_")
     rdss <- rdss[
-      gsub("MI_|\\.RDS", "", basename(rdss)) %in% as.character(valid_ids)
+      !is.na(artifact_ids) & artifact_ids %in% as.character(valid_ids)
     ]
   }
   rdss <- mixedsort(rdss)
@@ -98,19 +101,21 @@
   list(files = agg$files, EPCs = agg$EPCs, rdss = rdss)
 }
 
-.ctsgimme_delete_subject_files <- function(context, subject_ids, model_dir_out) {
+.ctgimme_delete_subject_files <- function(context, subject_ids, model_dir_out) {
   subject_ids <- as.character(subject_ids)
   unlink(
     file.path(context$directory, "MIs", paste0("MI_", subject_ids, ".RDS")),
-    force = TRUE
+    force = TRUE,
+    expand = FALSE
   )
   unlink(
     file.path(model_dir_out, paste0("Model_", subject_ids, ".RDS")),
-    force = TRUE
+    force = TRUE,
+    expand = FALSE
   )
 }
 
-.ctsgimme_prune_shared <- function(
+.ctgimme_prune_shared <- function(
     context, DRIFT, model_dir_out, threshold, subject_ids = context$ids,
     protected_mask = NULL) {
   rdss1 <- file.path(
@@ -122,7 +127,7 @@
   models <- list()
   for (prn in seq_along(rdss1)) {
     temp1 <- tryCatch(readRDS(rdss1[prn]), error = function(e) {
-      message("Failed to read ", prn, ": ", e$message)
+      warning("Failed to read ", prn, ": ", e$message, call. = FALSE)
       NULL
     })
     if (is.null(temp1)) next
@@ -175,11 +180,14 @@
   }
   cells <- arrayInd(idx, dim(true_count))[1, ]
   DRIFT[cells[1], cells[2]] <- "0"
-  message(paste0("Pruned drift parameter A[", cells[1], ",", cells[2], "]"))
+  .ctgimme_inform(
+    context$verbose,
+    paste0("Pruned drift parameter A[", cells[1], ",", cells[2], "]")
+  )
   list(DRIFT = DRIFT, pruned = TRUE)
 }
 
-.ctsgimme_shared_search <- function(
+.ctgimme_shared_search <- function(
     context, subject_ids, DRIFT, alpha, threshold, model_dir_out,
     subgroup = NULL, protected_mask = NULL, worker_cluster = NULL) {
   iterate <- 0
@@ -191,7 +199,7 @@
   )
 
   while (iterate < 1) {
-    stack <- .ctsgimme_read_mi_stack(context, valid_ids = subject_ids)
+    stack <- .ctgimme_read_mi_stack(context, valid_ids = subject_ids)
     files <- stack$files
     if (is.null(files) || !ncol(files)) break
 
@@ -203,7 +211,10 @@
     if (is.null(files) || !n_converge) break
 
     if (n_converge <= (n_requested / 2)) {
-      message("No shared path added: usable MI files for <= half of subjects.")
+      .ctgimme_inform(
+        context$verbose,
+        "No shared path added: usable MI files for <= half of subjects."
+      )
       iterate <- 1
       next
     }
@@ -224,11 +235,12 @@
     if (!length(best_idx) || !is.finite(median_mi[best_idx])) break
 
     selected_param <- names(median_mi)[best_idx]
-    cells <- .ctsgimme_get_cells(selected_param)
+    cells <- .ctgimme_get_cells(selected_param)
     if (anyNA(cells)) {
-      message(
+      warning(
         "Stopping shared search: malformed median-best parameter name: ",
-        selected_param
+        selected_param,
+        call. = FALSE
       )
       break
     }
@@ -248,16 +260,16 @@
 
     if (is.finite(sig_prop) && sig_prop >= threshold) {
       DRIFT[cells[1], cells[2]] <- paste0("A_", cells[1], ",", cells[2])
-      message(paste0(
+      .ctgimme_inform(context$verbose, paste0(
         "Adding drift parameter A[", cells[1], ",", cells[2], "]",
         " | median MI = ", round(median_mi[best_idx], 4),
         " | significant in ", sig_count, " of ", n_converge,
         " usable subjects (", round(sig_prop, 3), ")",
         " | adapted BH alpha = ", signif(n_alpha, 4)
       ))
-      message(paste0("Completed Step ", count))
-      .ctsgimme_delete_subject_files(context, subject_ids, model_dir_out)
-      .ctsgimme_fit_subjects(
+      .ctgimme_inform(context$verbose, paste0("Completed step ", count, "."))
+      .ctgimme_delete_subject_files(context, subject_ids, model_dir_out)
+      .ctgimme_fit_subjects(
         context,
         context$dataframe,
         subject_ids,
@@ -268,7 +280,7 @@
       )
       count <- count + 1
     } else {
-      message(paste0(
+      .ctgimme_inform(context$verbose, paste0(
         "Stopping shared search: median-best candidate A[",
         cells[1], ",", cells[2], "]",
         " did not meet threshold | median MI = ", round(median_mi[best_idx], 4),
@@ -278,14 +290,14 @@
         " | required proportion >= ", threshold,
         " | adapted BH alpha = ", signif(n_alpha, 4)
       ))
-      message("Beginning shared-path pruning.")
+      .ctgimme_inform(context$verbose, "Beginning shared-path pruning.")
       prune <- 0
       while (prune < 1) {
         if (sum(DRIFT != "0") == context$nvar) {
           prune <- 1
           break
         }
-        pruned <- .ctsgimme_prune_shared(
+        pruned <- .ctgimme_prune_shared(
           context,
           DRIFT,
             model_dir_out,
@@ -297,8 +309,8 @@
         if (!isTRUE(pruned$pruned)) {
           prune <- 1
         } else {
-          .ctsgimme_delete_subject_files(context, subject_ids, model_dir_out)
-          .ctsgimme_fit_subjects(
+          .ctgimme_delete_subject_files(context, subject_ids, model_dir_out)
+          .ctgimme_fit_subjects(
             context,
             context$dataframe,
             subject_ids,

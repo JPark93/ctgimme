@@ -1,4 +1,4 @@
 library(testthat)
-library(ctsgimme)
+library(ctgimme)
 
-test_check("ctsgimme")
+test_check("ctgimme")

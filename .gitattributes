@@ -6,3 +6,4 @@
 *.PNG -text
 *.pdf -text
 *.gz -text
+*.csv text eol=lf

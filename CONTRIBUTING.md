@@ -1,4 +1,4 @@
-# Contributing to ctsgimme
+# Contributing to ctgimme
 
 Contributions and reproducible bug reports are welcome. Please open an issue
 before beginning a large API or statistical-method change so its intended
@@ -19,7 +19,7 @@ devtools::test(stop_on_failure = TRUE)
 
 ```sh
 R CMD build .
-R CMD check --no-manual ctsgimme_*.tar.gz
+R CMD check --as-cran --run-donttest --timings ctgimme_*.tar.gz
 ```
 
 5. Describe the behavioral change and validation performed in the pull

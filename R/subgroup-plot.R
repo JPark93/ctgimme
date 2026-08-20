@@ -2,7 +2,7 @@
 # Subgroup membership artifacts and distance-map visualization
 # ============================================================================
 
-.ctsgimme_subject_distance_coordinates <- function(distance) {
+.ctgimme_subject_distance_coordinates <- function(distance) {
   distance <- as.matrix(distance)
   subject_count <- nrow(distance)
   subject_ids <- rownames(distance)
@@ -65,7 +65,7 @@
   )
 }
 
-.ctsgimme_prepare_subject_distance <- function(
+.ctgimme_prepare_subject_distance <- function(
     membership, distance = NULL, similarity = NULL, diagnostic_ids = NULL) {
   source <- NULL
   subject_distance <- NULL
@@ -126,7 +126,7 @@
   )
 }
 
-.ctsgimme_write_subgroup_membership <- function(
+.ctgimme_write_subgroup_membership <- function(
     membership, directory, distance = NULL, similarity = NULL,
     diagnostic_ids = NULL, method = NULL) {
   if (!length(membership)) {
@@ -162,7 +162,7 @@
   subgroup_colors <- grDevices::hcl.colors(n_subgroups, palette = "Dark 3")
   names(subgroup_colors) <- as.character(subgroup_levels)
 
-  prepared_distance <- .ctsgimme_prepare_subject_distance(
+  prepared_distance <- .ctgimme_prepare_subject_distance(
     membership,
     distance = distance,
     similarity = similarity,
@@ -173,7 +173,7 @@
   if (!is.null(prepared_distance)) {
     mapped_ids <- rownames(prepared_distance$distance)
     mapped_membership <- membership[mapped_ids]
-    map <- .ctsgimme_subject_distance_coordinates(prepared_distance$distance)
+    map <- .ctgimme_subject_distance_coordinates(prepared_distance$distance)
     coordinates <- map$points
     plot_span <- max(
       diff(range(coordinates[, 1L])),
@@ -204,7 +204,7 @@
       rep(1, length(edge_distances))
     }
 
-    .ctsgimme_safe_png(
+    .ctgimme_safe_png(
       plot_file,
       {
         previous_parameters <- graphics::par(
@@ -330,7 +330,7 @@
     max_size <- max(subgroup_sizes)
     plot_width <- max(800L, 260L * n_subgroups)
     plot_height <- max(700L, 36L * max_size + 180L)
-    .ctsgimme_safe_png(
+    .ctgimme_safe_png(
       plot_file,
       {
         graphics::plot.new()

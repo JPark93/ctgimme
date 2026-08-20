@@ -1,41 +1,41 @@
-.ctsgimme_detect_subgroups <- function(
+.ctgimme_detect_subgroups <- function(
     context, group_drift, sub.sig.thrsh, conduct,
     subgroup.method = c("pam", "legacy"), max.subgroups = NULL) {
   subgroup.method <- match.arg(subgroup.method)
-  .ctsgimme_validate_subgroup_options(
+  .ctgimme_validate_subgroup_options(
     sub.sig.thrsh,
     subgroup.method,
     max.subgroups
   )
   if (sub.sig.thrsh == 1.00) {
-    return(.ctsgimme_one_subgroup_result(
+    return(.ctgimme_one_subgroup_result(
       context,
       method = subgroup.method,
       reason = "Subgroup detection was disabled because sub.sig.thrsh = 1."
     ))
   }
   if (identical(subgroup.method, "pam")) {
-    return(.ctsgimme_detect_subgroups_pam(
+    return(.ctgimme_detect_subgroups_pam(
       context,
       group_drift = group_drift,
       max.subgroups = max.subgroups
     ))
   }
-  .ctsgimme_detect_subgroups_legacy(
+  .ctgimme_detect_subgroups_legacy(
     context,
     sub.sig.thrsh = sub.sig.thrsh,
     conduct = conduct
   )
 }
 
-.ctsgimme_edge_label_matrix <- function(edge_labels, nvar) {
+.ctgimme_edge_label_matrix <- function(edge_labels, nvar) {
   if (length(edge_labels) != nvar^2) {
     stop("edge_labels must contain exactly nvar^2 values.")
   }
   matrix(edge_labels, nrow = nvar, ncol = nvar)
 }
 
-.ctsgimme_subgroup_plot_components <- function(params.A, DRIFT, G.DRIFT, nvar) {
+.ctgimme_subgroup_plot_components <- function(params.A, DRIFT, G.DRIFT, nvar) {
   effects <- matrix(0, nvar, nvar)
   edge_labels <- matrix("", nvar, nvar)
   significance <- ifelse(
@@ -72,11 +72,11 @@
   )
 }
 
-.ctsgimme_fit_subgroup_model <- function(
+.ctgimme_fit_subgroup_model <- function(
     context, new.data, DRIFT, G.DRIFT, subgroup, subgroup_dir,
     time.intervals) {
-  .ctsgimme_validate_time_intervals(time.intervals)
-  message(paste0(
+  .ctgimme_validate_time_intervals(time.intervals)
+  .ctgimme_inform(context$verbose, paste0(
     "Fitting Parameterized Model of Subgroup ",
     subgroup,
     " with one multisubject likelihood"
@@ -98,38 +98,39 @@
         ub = 10,
         time_col = context$time_col
       )
-      OpenMx::mxTryHard(
+      .ctgimme_mx_try_hard(
         model,
-        silent = FALSE
+        context$verbose
       )
     },
     error = function(e) {
-      message(
+      warning(
         "Subgroup parameterized model failed for subgroup ",
         subgroup,
         ": ",
-        e$message
+        e$message,
+        call. = FALSE
       )
       NULL
     }
   )
   if (is.null(fit)) return(invisible(NULL))
 
-  .ctsgimme_save_rds(
+  .ctgimme_save_rds(
     fit,
     file.path(subgroup_dir, paste0("Subgroup_", subgroup, "Model.RDS"))
   )
 
   sum.fit <- summary(fit)
   params.A <- subset(sum.fit$parameters, matrix == "A")
-  plot_components <- .ctsgimme_subgroup_plot_components(
+  plot_components <- .ctgimme_subgroup_plot_components(
     params.A,
     DRIFT,
     G.DRIFT,
     context$nvar
   )
   effects <- plot_components$effects
-  .ctsgimme_safe_png(
+  .ctgimme_safe_png(
     file.path(
       subgroup_dir,
       paste0("Subgroup ", subgroup, " Params.png")
@@ -157,7 +158,7 @@
   }
   for (ints in time.intervals) {
     delt <- round(expm::expm(effects * ints), 3)
-    .ctsgimme_safe_png(
+    .ctgimme_safe_png(
       file.path(
         subgroup_dir,
         paste0("Subgroup ", subgroup, " Delta_t = ", ints, ".png")

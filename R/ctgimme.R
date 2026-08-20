@@ -20,8 +20,8 @@
 #' @param id Character scalar naming the subject-identifier column in
 #'   `dataframe`. Each distinct value defines one subject. Values are converted
 #'   to character for matching, membership labels, and intermediate filenames,
-#'   so use nonmissing identifiers that are safe in filenames. This argument
-#'   is required.
+#'   so use nonmissing identifiers that are safe in filenames and remain
+#'   distinct when compared without case. This argument is required.
 #' @param time Character scalar naming the numeric observation-time column in
 #'   `dataframe`. Its units determine the scale of continuous-time parameters
 #'   fit to the observed-time data. The multisubject subgroup model preserves
@@ -32,10 +32,9 @@
 #'   process variable. This argument is required.
 #' @param cores Positive integer giving the requested number of parallel PSOCK
 #'   workers. The default is `1`, which runs without a worker pool. Requests
-#'   are reduced to the number of subjects, but are not otherwise capped during
-#'   ordinary use. When `_R_CHECK_LIMIT_CORES_` is active during a package
-#'   check, they are additionally capped at two. One pool is reused across
-#'   fitting stages, and OpenMx uses one thread in each R process.
+#'   are reduced to the number of subjects and capped at two in accordance with
+#'   CRAN policy. One pool is reused across fitting stages, and OpenMx uses one
+#'   thread in each R process.
 #' @param directory Character scalar giving the output directory for model,
 #'   modification-index, plot, membership, and diagnostic artifacts. It is
 #'   created recursively when necessary. Existing files with package-defined
@@ -146,18 +145,26 @@
 #'   process variable separately within each subject before all estimation
 #'   stages; within-subject constant columns are centered to zero. The default
 #'   is `FALSE`, which preserves the supplied scale.
+#' @param verbose Logical scalar controlling informational progress output. If
+#'   `TRUE` (the default), stage messages and optimizer reporting from fits in
+#'   the main R process are shown; PSOCK worker output is not forwarded by the
+#'   parallel backend. If `FALSE`, package messages and main-process optimizer
+#'   reports are suppressed. Warnings and errors remain visible and can be
+#'   handled with standard R condition tools such as [suppressWarnings()] and
+#'   [tryCatch()].
 #'
-#' @return If `sub.sig.thrsh = 1`, an invisible list with elements `message`,
-#'   `G.DRIFT`, `membership`, and `directory`. With enabled subgroup detection,
-#'   a successful PAM run returns a `cluster::pam` object augmented with a
-#'   complete, ID-aligned `membership` element; a successful legacy run returns
-#'   an `igraph` communities object. Both successful clustering objects carry
-#'   a `ctsgimme.membership.artifacts` attribute. If enabled detection falls
-#'   back to a single group because too few subject model/modification-index
-#'   pairs are usable or because PAM finds no recurrent eligible features, the
-#'   function returns `NULL`. In every successfully completed case, the
-#'   complete membership is written to `subgroup_membership.csv` and saved in
-#'   `subgroup_detection.rds`.
+#' @return If subgroup detection is disabled or falls back to one membership
+#'   group, an invisible list with elements `message`, `G.DRIFT`, `membership`,
+#'   `directory`, `clustering`, and `subgroup.detection`. Thus every successful
+#'   run returns an object from which the complete membership can be extracted.
+#'   With enabled subgroup detection, a successful PAM run returns a
+#'   `cluster::pam` object augmented with a complete, ID-aligned `membership`
+#'   element; a successful legacy run returns an `igraph` communities object.
+#'   Both successful clustering objects carry the complete ID-aligned vector
+#'   in the `ctgimme.membership` attribute and the output paths in the
+#'   `ctgimme.membership.artifacts` attribute. In every successfully completed
+#'   case, the complete membership is also written to `subgroup_membership.csv`
+#'   and saved in `subgroup_detection.rds`.
 #'
 #' @details Estimation is computationally intensive and writes intermediate and
 #'   final artifacts to `directory`. Every successfully completed run writes
@@ -199,10 +206,11 @@
 #'   Estimating both variance sets generally requires more within-person
 #'   information than estimating process noise while fixing measurement error.
 #'   Estimated values are stored in the `R` and `Q` matrices, respectively, of
-#'   saved OpenMx models. Internal OpenMx fits use standard console reporting
-#'   rather than the interactive progress callback, which avoids
-#'   `imxReportProgress` lookup failures reported in some RStudio/OpenMx
-#'   installations.
+#'   saved OpenMx models. The `verbose` argument controls package progress and
+#'   main-process OpenMx reporting; the parallel backend does not forward raw
+#'   worker output. Internal fits do not use the interactive progress callback,
+#'   which avoids `imxReportProgress` lookup failures reported in some
+#'   RStudio/OpenMx installations.
 #'
 #' @references Park, J. J., Fisher, Z. F., Hunter, M. D., Shenk, C., Russell,
 #'   M., Molenaar, P. C. M., & Chow, S.-M. (2025). Unsupervised model
@@ -211,30 +219,44 @@
 #'   \doi{10.1080/10705511.2024.2429544}
 #'
 #' @examples
-#' quick <- ctsgimme_demo()
+#' quick <- ctgimme_demo()
 #' table(quick$membership)
 #'
-#' \dontrun{
-#' fit <- ctsgimme(
-#'   varnames = c("x1", "x2", "x3"),
-#'   dataframe = observations,
-#'   id = "id",
-#'   time = "time",
-#'   directory = "ctsgimme-output",
-#'   sub.sig.thrsh = 0.55,
-#'   max.subgroups = 4,
-#'   ME.var = 0.05,
-#'   ME.free = FALSE,
-#'   PE.var = 1,
-#'   PE.free = TRUE
-#' )
-#' }
+#' fit_membership <- local({
+#'   set.seed(123)
+#'   n_time <- 12L
+#'   observations <- data.frame(
+#'     id = rep(c("S1", "S2"), each = n_time),
+#'     time = rep(0:(n_time - 1L), 2L),
+#'     x = c(
+#'       stats::arima.sim(model = list(ar = 0.6), n = n_time),
+#'       stats::arima.sim(model = list(ar = 0.6), n = n_time)
+#'     )
+#'   )
+#'   example_output <- tempfile("ctgimme-example-")
+#'   on.exit(
+#'     unlink(example_output, recursive = TRUE, expand = FALSE),
+#'     add = TRUE
+#'   )
+#'   fit <- ctgimme(
+#'     varnames = "x",
+#'     dataframe = observations,
+#'     id = "id",
+#'     time = "time",
+#'     directory = example_output,
+#'     ME.var = 0.05,
+#'     PE.var = 1,
+#'     verbose = FALSE
+#'   )
+#'   fit$membership
+#' })
+#' fit_membership
 #'
-#' @seealso [ctsgimme_demo()] for a fast, estimation-free demonstration of
+#' @seealso [ctgimme_demo()] for a fast, estimation-free demonstration of
 #'   the subgroup selection step.
 #'
 #' @export
-ctsgimme <- function(varnames = NULL, dataframe = NULL,
+ctgimme <- function(varnames = NULL, dataframe = NULL,
                      id = NULL, time = NULL,
                      cores = 1, directory = NULL,
                      sig.thrsh = 0.55, sub.sig.thrsh = 1.00,
@@ -248,8 +270,12 @@ ctsgimme <- function(varnames = NULL, dataframe = NULL,
                      max.subgroups = NULL,
                       scale.data = FALSE,
                       ME.free = FALSE,
-                      PE.free = FALSE) {
+                      PE.free = FALSE,
+                      verbose = TRUE) {
   subgroup.method <- match.arg(subgroup.method)
+  if (length(verbose) != 1L || !is.logical(verbose) || is.na(verbose)) {
+    stop("verbose must be supplied as TRUE or FALSE.")
+  }
   if (length(scale.data) != 1L || !is.logical(scale.data) || is.na(scale.data)) {
     stop("scale.data must be supplied as TRUE or FALSE.")
   }
@@ -258,16 +284,26 @@ ctsgimme <- function(varnames = NULL, dataframe = NULL,
     stop("subgroup.model must be supplied as TRUE or FALSE.")
   }
   if (isTRUE(subgroup.model)) {
-    .ctsgimme_validate_time_intervals(time.intervals)
+    .ctgimme_validate_time_intervals(time.intervals)
   }
 
-  .ctsgimme_validate_inputs(varnames, dataframe, id, time, directory)
-  .ctsgimme_validate_subgroup_options(
+  .ctgimme_validate_inputs(varnames, dataframe, id, time, directory)
+  .ctgimme_validate_controls(
+    sig.thrsh,
+    sub.sig.thrsh,
+    Galpha,
+    ben.hoch,
+    S.Galpha,
+    Ialpha,
+    keep.intermediate,
+    conduct
+  )
+  .ctgimme_validate_subgroup_options(
     sub.sig.thrsh,
     subgroup.method,
     max.subgroups
   )
-  .ctsgimme_load_dependencies(
+  .ctgimme_load_dependencies(
     conduct,
     sub.sig.thrsh,
     subgroup.method,
@@ -284,7 +320,7 @@ ctsgimme <- function(varnames = NULL, dataframe = NULL,
       add = TRUE
     )
   }
-  context <- .ctsgimme_prepare_context(
+  context <- .ctgimme_prepare_context(
     varnames,
     dataframe,
     id,
@@ -295,24 +331,25 @@ ctsgimme <- function(varnames = NULL, dataframe = NULL,
     PE.var,
     ben.hoch,
     ME.free,
-    PE.free
+    PE.free,
+    verbose
   )
   if (isTRUE(scale.data)) {
-    context <- .ctsgimme_scale_data(context)
+    context <- .ctgimme_scale_data(context)
   }
 
-  worker_cluster <- .ctsgimme_make_worker_cluster(context$cores)
+  worker_cluster <- .ctgimme_make_worker_cluster(context$cores)
   if (!is.null(worker_cluster)) {
-    on.exit(.ctsgimme_stop_worker_cluster(worker_cluster), add = TRUE)
+    on.exit(.ctgimme_stop_worker_cluster(worker_cluster), add = TRUE)
   }
 
-  G.DRIFT <- .ctsgimme_run_group_stage(
+  G.DRIFT <- .ctgimme_run_group_stage(
     context,
     Galpha,
     sig.thrsh,
     worker_cluster = worker_cluster
   )
-  subgroup_result <- .ctsgimme_detect_subgroups(
+  subgroup_result <- .ctgimme_detect_subgroups(
     context,
     G.DRIFT,
     sub.sig.thrsh,
@@ -321,7 +358,7 @@ ctsgimme <- function(varnames = NULL, dataframe = NULL,
     max.subgroups
   )
   memb <- subgroup_result$membership
-  membership_artifacts <- .ctsgimme_write_subgroup_membership(
+  membership_artifacts <- .ctgimme_write_subgroup_membership(
     memb,
     context$directory,
     distance = subgroup_result$diagnostics$distance,
@@ -330,7 +367,7 @@ ctsgimme <- function(varnames = NULL, dataframe = NULL,
     method = subgroup_result$method
   )
   subgroup_result$diagnostics$membership.artifacts <- membership_artifacts
-  .ctsgimme_save_rds(
+  .ctgimme_save_rds(
     subgroup_result,
     file.path(context$directory, "subgroup_detection.rds")
   )
@@ -339,15 +376,24 @@ ctsgimme <- function(varnames = NULL, dataframe = NULL,
     # Keep the standard PAM $clustering vector and also expose the full,
     # ID-aligned membership for direct lookup by subject identifier.
     clustering_result$membership <- memb
-    attr(clustering_result, "ctsgimme.version") <- "0.0.11"
+    attr(clustering_result, "ctgimme.version") <-
+      as.character(getNamespaceVersion("ctgimme"))
   }
   if (!is.null(clustering_result)) {
-    attr(clustering_result, "ctsgimme.membership.artifacts") <-
+    attr(clustering_result, "ctgimme.membership") <- memb
+    attr(clustering_result, "ctgimme.membership.artifacts") <-
       membership_artifacts
   }
-  print(memb)
+  .ctgimme_inform(
+    context$verbose,
+    "Assigned ",
+    length(memb),
+    " subject(s) to ",
+    length(unique(memb)),
+    " subgroup(s)."
+  )
 
-  .ctsgimme_run_subgroup_stages(
+  .ctgimme_run_subgroup_stages(
     context,
     memb,
     G.DRIFT,
@@ -358,20 +404,22 @@ ctsgimme <- function(varnames = NULL, dataframe = NULL,
     Ialpha,
     worker_cluster = worker_cluster
   )
-  .ctsgimme_cleanup(context, keep.intermediate)
+  .ctgimme_cleanup(context, keep.intermediate)
 
-  message(paste0(
+  .ctgimme_inform(context$verbose, paste0(
     "Subgrouping with Continuous-Time GIMME Complete. Find networks in ",
     directory,
     "."
   ))
 
-  if (sub.sig.thrsh == 1) {
+  if (sub.sig.thrsh == 1 || is.null(clustering_result)) {
     invisible(list(
       message = "Continuous-Time S-GIMME Complete.",
       G.DRIFT = G.DRIFT,
       membership = memb,
-      directory = directory
+      directory = directory,
+      clustering = clustering_result,
+      subgroup.detection = subgroup_result
     ))
   } else {
     clustering_result

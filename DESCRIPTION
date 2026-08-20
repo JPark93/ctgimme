@@ -1,6 +1,6 @@
-Package: ctsgimme
-Title: Continuous-Time Subgrouping with Group Iterative Multiple Model Estimation
-Version: 0.0.11
+Package: ctgimme
+Title: Continuous-Time Subgrouping with GIMME
+Version: 0.0.12
 Authors@R: c(
     person(
       given = c("Jonathan", "J."),
@@ -25,11 +25,10 @@ Description: Estimates group-, subgroup-, and individual-level dynamic
     <doi:10.1080/10705511.2024.2429544>.
 URL: https://github.com/JPark93/ctgimme
 BugReports: https://github.com/JPark93/ctgimme/issues
-License: Apache License (== 2.0) | file LICENSE
+License: Apache License (== 2.0)
 Encoding: UTF-8
 Language: en-US
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
 Depends:
     R (>= 4.1.0)
 Imports:
@@ -47,5 +46,6 @@ Suggests:
     expm,
     igraph,
     nloptr,
-    testthat (>= 3.0.0)
+    testthat (>= 3.2.0)
 Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.0

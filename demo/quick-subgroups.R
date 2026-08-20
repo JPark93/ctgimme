@@ -1,3 +1,3 @@
-result <- ctsgimme_demo()
-print(result$membership)
-print(result$candidates)
+result <- ctgimme_demo()
+result$membership
+result$candidates
