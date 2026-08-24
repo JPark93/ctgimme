@@ -39,11 +39,11 @@ suppressPackageStartupMessages(library(ctgimme))
 if (!requireNamespace("OpenMx", quietly = TRUE)) stop("OpenMx is required.")
 if (!requireNamespace("expm", quietly = TRUE)) stop("expm is required.")
 if (!requireNamespace("digest", quietly = TRUE)) stop("digest is required.")
-if (!identical(as.character(packageVersion("ctgimme")), "0.0.12")) {
-  stop("This acceptance test requires installed ctgimme 0.0.12.")
+if (!identical(as.character(packageVersion("ctgimme")), "0.1.0")) {
+  stop("This acceptance test requires installed ctgimme 0.1.0.")
 }
 if (!identical(sort(getNamespaceExports("ctgimme")), c("ctgimme", "ctgimme_demo"))) {
-  stop("The installed ctgimme exports are not the 0.0.12 public API.")
+  stop("The installed ctgimme exports are not the 0.1.0 public API.")
 }
 
 sha256_file <- function(path) {
@@ -400,7 +400,7 @@ saveRDS(
 capture.output(utils::sessionInfo(), file = file.path(output_dir, "session-info.txt"))
 
 report <- c(
-  "# Installed ctgimme 0.0.12 ISDSA acceptance",
+  "# Installed ctgimme 0.1.0 ISDSA acceptance",
   "",
   paste0("Installed package: ", installed_package_path),
   paste0("Fixture SHA-256: ", observed_hashes[["fixture"]]),

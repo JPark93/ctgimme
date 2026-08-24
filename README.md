@@ -29,11 +29,11 @@ if (!requireNamespace("remotes", quietly = TRUE)) {
 remotes::install_github("JPark93/ctgimme", dependencies = TRUE)
 ```
 
-Install the 0.0.12 source archive while also resolving dependencies:
+Install the 0.1.0 source archive while also resolving dependencies:
 
 ```r
 remotes::install_local(
-  "path/to/ctgimme_0.0.12.tar.gz",
+  "path/to/ctgimme_0.1.0.tar.gz",
   dependencies = TRUE
 )
 ```
@@ -42,7 +42,7 @@ If the dependencies are already installed, base R can install the archive:
 
 ```r
 install.packages(
-  "path/to/ctgimme_0.0.12.tar.gz",
+  "path/to/ctgimme_0.1.0.tar.gz",
   repos = NULL,
   type = "source"
 )

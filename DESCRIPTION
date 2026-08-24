@@ -1,6 +1,6 @@
 Package: ctgimme
 Title: Continuous-Time Subgrouping with GIMME
-Version: 0.0.12.9000
+Version: 0.1.0
 Authors@R: c(
     person(
       given = c("Jonathan", "J."),

@@ -1,4 +1,4 @@
-# ctgimme 0.0.13 (development)
+# ctgimme 0.1.0
 
 - Removed the package-wide two-worker ceiling. `cores` still defaults to one,
   while explicit requests are now reduced only to the number of subjects.

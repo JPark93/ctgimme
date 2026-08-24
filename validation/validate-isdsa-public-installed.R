@@ -29,8 +29,8 @@ dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 suppressPackageStartupMessages(library(ctgimme))
 if (!requireNamespace("digest", quietly = TRUE)) stop("digest is required.")
-if (!identical(as.character(packageVersion("ctgimme")), "0.0.12")) {
-  stop("This acceptance test requires installed ctgimme 0.0.12.")
+if (!identical(as.character(packageVersion("ctgimme")), "0.1.0")) {
+  stop("This acceptance test requires installed ctgimme 0.1.0.")
 }
 fixture_sha256 <- toupper(digest::digest(
   fixture_file,
@@ -317,7 +317,7 @@ saveRDS(
 capture.output(utils::sessionInfo(), file = file.path(output_dir, "public_session-info.txt"))
 writeLines(
   c(
-    "# Installed ctgimme 0.0.12 public ISDSA acceptance",
+    "# Installed ctgimme 0.1.0 public ISDSA acceptance",
     "",
     paste0("Elapsed seconds: ", format(elapsed, digits = 6)),
     "Membership, group support, and both subgroup supports matched fixture truth.",

@@ -21,7 +21,7 @@ defaults with these arguments:
 - `--reference`: the prior `analysis/demo-multisubject` directory containing
   `fit_summary.csv`, `parameter_estimates.csv`, and
   `subject_order_invariance.csv`;
-- `--output`: a required new directory for 0.0.12 results and generated
+- `--output`: a required new directory for 0.1.0 results and generated
   artifacts.
 
 Install the exact tarball into an isolated library and put that library first
@@ -30,14 +30,14 @@ acceptance fit also requires the suggested package `expm`; install it once if
 it is not already available. From the repository root on Windows PowerShell:
 
 ```powershell
-$archive = (Resolve-Path "dist/ctgimme_0.0.12.tar.gz").Path
-$expectedArchiveSha256 = "485E698808387C8FB15E30EC9B464878BCF88B82BEF710ED2D756CE955AF1ABA"
+$archive = (Resolve-Path "dist/ctgimme_0.1.0.tar.gz").Path
+$expectedArchiveSha256 = "REPLACE_WITH_FINAL_0_1_0_SHA256"
 if ((Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash -ne $expectedArchiveSha256) {
   throw "Release archive SHA-256 mismatch."
 }
 $runId = [guid]::NewGuid().ToString("N")
-$library = Join-Path $env:TEMP ("ctgimme-0.0.12-library-" + $runId)
-$output = Join-Path $env:TEMP ("ctgimme-0.0.12-output-" + $runId)
+$library = Join-Path $env:TEMP ("ctgimme-0.1.0-library-" + $runId)
+$output = Join-Path $env:TEMP ("ctgimme-0.1.0-output-" + $runId)
 New-Item -ItemType Directory -Path $library -Force | Out-Null
 Rscript --vanilla -e "if (!requireNamespace('expm', quietly = TRUE)) install.packages('expm')"
 if ($LASTEXITCODE -ne 0) { throw "Installing acceptance dependencies failed." }
