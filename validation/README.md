@@ -10,6 +10,8 @@ contracts against the fixture truth.
 
 The checked 0.0.12 outcomes are summarized in
 [`ACCEPTANCE-0.0.12.md`](ACCEPTANCE-0.0.12.md).
+The 0.1.0 exact-archive regression and parallel-worker results are summarized
+in [`ACCEPTANCE-0.1.0.md`](ACCEPTANCE-0.1.0.md).
 
 The repository includes the simulated fixture and frozen 0.0.11 numerical
 reference under `validation/fixtures/` and `validation/reference-0.0.11/`.
