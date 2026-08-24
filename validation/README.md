@@ -31,7 +31,7 @@ it is not already available. From the repository root on Windows PowerShell:
 
 ```powershell
 $archive = (Resolve-Path "dist/ctgimme_0.1.0.tar.gz").Path
-$expectedArchiveSha256 = "REPLACE_WITH_FINAL_0_1_0_SHA256"
+$expectedArchiveSha256 = "C23BC88796F2207FC16F4F7E0CD0A39C00A78D534BE9EDAB1F8AB330921C0005"
 if ((Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash -ne $expectedArchiveSha256) {
   throw "Release archive SHA-256 mismatch."
 }
@@ -41,7 +41,7 @@ $output = Join-Path $env:TEMP ("ctgimme-0.1.0-output-" + $runId)
 New-Item -ItemType Directory -Path $library -Force | Out-Null
 Rscript --vanilla -e "if (!requireNamespace('expm', quietly = TRUE)) install.packages('expm')"
 if ($LASTEXITCODE -ne 0) { throw "Installing acceptance dependencies failed." }
-R CMD INSTALL "--library=$library" $archive
+R.exe CMD INSTALL "--library=$library" $archive
 if ($LASTEXITCODE -ne 0) { throw "R CMD INSTALL failed." }
 
 $effectiveLibraries = Rscript --vanilla -e 'cat(paste(.libPaths(), collapse = .Platform$path.sep))'

@@ -1,89 +1,61 @@
-## Resubmission
+## Release
 
-This is a resubmission of the previously rejected `ctsgimme` package. The
-package was not published on CRAN under that name. Before resubmission, the
-package, namespace, primary function, demo function, documentation aliases,
-returned-object attributes, tests, citation metadata, and source archive were
-renamed consistently to `ctgimme`. The resubmission version is 0.0.12.
+This is ctgimme 0.1.0, the first feature update after the CRAN publication of
+0.0.12. The public function signatures and statistical model specification
+are unchanged.
 
-## Response to reviewer comments
+## Changes
 
-### Examples
+- The public `cores` argument still defaults to `1`, so examples and ordinary
+  default execution remain serial. Explicit user requests are no longer
+  subject to a package-wide two-worker ceiling; they are reduced only when
+  they exceed the number of subjects. OpenMx uses one thread per R process.
+- Warnings raised during subject fits on PSOCK workers are returned to the
+  main process and signaled there as ordinary R warnings. Informational
+  worker output remains suppressed, and `verbose = FALSE` remains quiet on
+  successful runs.
+- No fitting, path-selection, multisubject subgroup-model, or saved-output
+  behavior was intentionally changed.
 
-- Removed the `\dontrun{}` wrapper.
-- Replaced the incomplete example, which referred to an undefined object,
-  with a self-contained and deterministic toy fit.
-- The example is executable, is therefore left unwrapped, writes only beneath
-  the R session temporary directory, and cleans its files on exit.
-- The exact submitted archive completed the `ctgimme()` example in 0.68
-  seconds during `R CMD check --as-cran --run-donttest`.
-- The package contains no `\dontrun{}` or `\donttest{}` examples.
+Package examples use the serial default. Real process-spawning tests use no
+more than two workers; higher requested counts are covered with mocked
+worker-pool tests. A separate installed-package smoke test used four workers
+outside `R CMD check`.
 
-### Console output
+## Local checks
 
-- Removed the unconditional `print()` call that displayed subgroup
-  membership. Membership is returned by `ctgimme()` and remains available in
-  the saved membership artifact.
-- Added a scalar logical `verbose` argument at the end of the public function
-  signature. With `verbose = FALSE`, package progress messages and OpenMx
-  optimizer/progress output are suppressed. Results and saved artifacts are
-  unchanged.
-- User-facing progress is emitted with `message()` only when `verbose = TRUE`.
-  Warnings and errors remain proper, suppressible R conditions.
-- Tests exercise both verbose modes, including real serial and two-worker
-  fits, and verify that `verbose = FALSE` produces no standard output or
-  messages.
+Windows 11 x64, R 4.4.2:
 
-## Additional changes and checks
+`R CMD check --as-cran --run-donttest --timings`
 
-- Package-managed parallelism is capped at two workers in every environment,
-  with one OpenMx thread per worker.
-- Added validation for identifiers, time and variable columns, controls, and
-  output paths; hardened temporary-file cleanup and portable subject artifact
-  names.
-- Added worker-library propagation and all required PSOCK exports, with a real
-  two-worker regression test.
-- Retained the multisubject subgroup estimator introduced in the preceding
-  0.0.11 package version: each subgroup has one shared parameter vector and one
-  independently initialized likelihood block per subject. Requested
-  `exp(A * delta)` plots and one fitted `Subgroup_<g>Model.RDS` are produced
-  per subgroup.
+0 errors | 0 warnings | 3 notes
 
-The exact release archive also passed an installed-package acceptance test on
-the 20-subject, 4,000-row ISDSA clone fixture. All four subgroup fits (two
-subgroups in forward and reversed subject order) converged with ten shared
-parameters and ten independent subject likelihood blocks. Relative to the
-frozen 0.0.11 multisubject reference, the maximum estimate difference was
-5.07e-9, the maximum standard-error difference was 2.96e-6, the maximum
-likelihood difference was 4.00e-11, and the maximum forward/reverse estimate
-difference was 2.83e-10. This is a finite-fixture
-regression test and is not presented as evidence of frequentist unbiasedness.
+1. CRAN incoming reported `Days since last update: 0`, because 0.0.12 was
+   published on the day this candidate was prepared.
+2. The local system clock could not be verified.
+3. Pandoc was unavailable locally, so the top-level README/NEWS Markdown
+   check was skipped. Package HTML and PDF manuals were generated and checked
+   successfully.
 
-The installed public `ctgimme()` workflow was also run on the complete fixture
-with `verbose = FALSE`. It produced no console output or messages, recovered
-the exact membership plus group and subgroup supports, converged for all 20
-individual fits, and wrote two joint ten-subject subgroup models with all
-requested RDS and transition-plot artifacts.
+All examples and 213 test expectations passed. The `ctgimme()` example took
+0.46 seconds. The checked archive is `ctgimme_0.1.0.tar.gz`, 52,096 bytes,
+SHA-256
+`C23BC88796F2207FC16F4F7E0CD0A39C00A78D534BE9EDAB1F8AB330921C0005`.
 
-## Test environment
+## Installed-package regression validation
 
-- Windows 11 x64 (build 26200)
-- R 4.6.1 (2026-06-24 ucrt)
-- `R CMD check --as-cran --run-donttest --timings`
+The exact archive was installed into an isolated library and compared with
+the frozen 0.0.11 multisubject ISDSA reference. All four subgroup fits
+converged with ten shared parameters and ten independent subject likelihood
+blocks. Maximum differences were `4.44e-16` for estimates, `4.86e-17` for
+standard errors, `4.37e-11` for likelihoods, and `5.18e-9` under reversed
+subject order. All truth-recovery and PNG/RDS artifact gates passed.
 
-## R CMD check results
+An installed public toy workflow also produced identical membership, group
+structure, and individual drift estimates at `cores = 1` and `cores = 4`.
+The four-worker run used four distinct PSOCK worker processes.
 
-0 errors | 0 warnings | 2 notes
-
-1. `New submission` -- expected because `ctgimme` has not previously been
-   published on CRAN.
-2. Local HTML validation was skipped because an HTML Tidy executable was not
-   installed. The HTML manual was generated successfully; this note is local
-   environment configuration rather than a package issue.
-
-The PDF manual, examples, demos, and tests completed successfully. The test
-suite reported 190 passing expectations with no failures, warnings, errors,
-or skips.
-
-The checked archive is `ctgimme_0.0.12.tar.gz`, SHA-256
-`485E698808387C8FB15E30EC9B464878BCF88B82BEF710ED2D756CE955AF1ABA`.
+Current R/R-devel, win-builder, and cross-platform GitHub results will be
+added here before CRAN submission. Because 0.0.12 was published today, this
+0.1.0 archive should not be submitted immediately unless CRAN specifically
+requests a correction.
