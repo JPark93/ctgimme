@@ -209,9 +209,11 @@ drift matrix. Parameter and transition plots use expanded margins so boundary
 nodes, loops, titles, and labels are not clipped in the saved PNG files.
 
 For a first run on a new computer, use `cores = 1` and a new, empty output
-directory. After that run succeeds, `cores = 2` can reduce elapsed time, at the
-cost of the memory used by one additional R/OpenMx worker. Requests above two
-are reduced to the package-wide two-worker maximum.
+directory. After that run succeeds, `cores > 1` can reduce elapsed time, at the
+cost of the memory used by each additional R/OpenMx worker. Explicit requests
+are reduced only when they exceed the number of subjects; the package imposes
+no separate worker maximum. Choose a value supported by the machine or
+computing allocation being used.
 
 ## Results and output files
 
@@ -266,10 +268,12 @@ not placed on the map.
 
 ## Parallel execution
 
-The `cores` argument defaults to one. Explicit requests are bounded by both the
-number of subjects and a package-wide maximum of two workers, in accordance
-with CRAN policy. OpenMx is set to one thread in each R process during the run,
-and the calling process's previous OpenMx thread setting is restored on exit.
+The `cores` argument defaults to one. Explicit requests are bounded by the
+number of subjects only; the package imposes no additional worker maximum and
+does not override the user's resource choice. OpenMx is set to one thread in
+each R process during the run, and the calling process's previous OpenMx
+thread setting is restored on exit. Package examples use the serial default,
+and package tests never start more than two workers.
 
 For `cores > 1`, `ctgimme` creates one PSOCK worker pool and reuses it for the
 group, subgroup, and individual fitting batches. Workers load OpenMx and

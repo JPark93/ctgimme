@@ -62,9 +62,10 @@ process variable. This argument is required.}
 
 \item{cores}{Positive integer giving the requested number of parallel PSOCK
 workers. The default is \code{1}, which runs without a worker pool. Requests
-are reduced to the number of subjects and capped at two in accordance with
-CRAN policy. One pool is reused across fitting stages, and OpenMx uses one
-thread in each R process.}
+are reduced only to the number of subjects; the package imposes no
+additional worker maximum. Users are responsible for requesting a value
+supported by their machine or computing allocation. One pool is reused
+across fitting stages, and OpenMx uses one thread in each R process.}
 
 \item{directory}{Character scalar giving the output directory for model,
 modification-index, plot, membership, and diagnostic artifacts. It is

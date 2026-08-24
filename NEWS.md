@@ -1,3 +1,11 @@
+# ctgimme 0.0.13 (development)
+
+- Removed the package-wide two-worker ceiling. `cores` still defaults to one,
+  while explicit requests are now reduced only to the number of subjects.
+- Relayed warning conditions raised by PSOCK subject-fit workers through the
+  main R process during parallel execution, without changing fitting or
+  selection behavior.
+
 # ctgimme 0.0.12
 
 - Renamed the package and its complete public identity from `ctsgimme` to
@@ -22,9 +30,6 @@
 - Propagated the master session's library paths to PSOCK workers and exported
   the refactored initial-covariance helpers, preventing two-worker fits from
   failing after an R/library upgrade or during subject-model construction.
-- Relayed warning conditions raised by PSOCK subject-fit workers through the
-  main R process with `cores = 2`, without changing fitting or selection
-  behavior.
 - Hardened subject-artifact handling for portable filesystems: identifiers
   must be unique without regard to case, generated prefixes/suffixes are
   decoded literally, wildcard characters are never expanded during cleanup,

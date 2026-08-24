@@ -224,15 +224,7 @@
     .ctgimme_inform(verbose, "Cores adjusted to the number of subjects.")
   }
 
-  resolved <- min(subject_limited, 2L)
-  if (resolved < subject_limited) {
-    .ctgimme_inform(
-      verbose,
-      "Cores adjusted to the package maximum of two."
-    )
-  }
-
-  max(1L, resolved)
+  max(1L, subject_limited)
 }
 
 .ctgimme_worker_registry <- local({
@@ -262,7 +254,7 @@
 }
 
 .ctgimme_make_worker_cluster <- function(cores) {
-  cores <- min(as.integer(cores), 2L)
+  cores <- as.integer(cores)
   if (cores <= 1L) return(NULL)
 
   # Package loading is one of the largest fixed costs on Windows. Keep these

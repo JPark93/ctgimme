@@ -30,14 +30,11 @@ test_that("the renamed namespace exposes only the ctgimme public API", {
   expect_false("ctsgimme_demo" %in% exports)
 })
 
-test_that("parallel requests are capped at two and at the subject count", {
+test_that("parallel requests are bounded only by the subject count", {
   expect_identical(ctgimme:::.ctgimme_resolve_cores(1, 20), 1L)
   expect_identical(ctgimme:::.ctgimme_resolve_cores(2, 20), 2L)
-  expect_message(
-    expect_identical(ctgimme:::.ctgimme_resolve_cores(6, 20), 2L),
-    "package maximum of two",
-    fixed = TRUE
-  )
+  expect_identical(ctgimme:::.ctgimme_resolve_cores(6, 20), 6L)
+  expect_identical(ctgimme:::.ctgimme_resolve_cores(20, 20), 20L)
   expect_message(
     expect_identical(ctgimme:::.ctgimme_resolve_cores(6, 1), 1L),
     "number of subjects",
@@ -56,9 +53,42 @@ test_that("parallel requests are capped at two and at the subject count", {
 
 test_that("core-adjustment messages honor verbose", {
   expect_no_message(
-    resolved <- ctgimme:::.ctgimme_resolve_cores(6, 20, verbose = FALSE)
+    resolved <- ctgimme:::.ctgimme_resolve_cores(6, 4, verbose = FALSE)
   )
-  expect_identical(resolved, 2L)
+  expect_identical(resolved, 4L)
+})
+
+test_that("large explicit core requests have no package-wide maximum", {
+  expect_identical(ctgimme:::.ctgimme_resolve_cores(64, 100), 64L)
+})
+
+test_that("worker-cluster creation preserves resolved counts above two", {
+  tracker <- new.env(parent = emptyenv())
+  tracker$cores <- NULL
+  fake_cluster <- structure(
+    list(id = "four-worker-pool"),
+    class = "mock_cluster"
+  )
+
+  cluster <- testthat::with_mocked_bindings(
+    testthat::with_mocked_bindings(
+      ctgimme:::.ctgimme_make_worker_cluster(4L),
+      clusterCall = function(...) list(TRUE),
+      .package = "parallel"
+    ),
+    makeCluster = function(cores, type) {
+      tracker$cores <- cores
+      expect_identical(type, "PSOCK")
+      fake_cluster
+    },
+    clusterEvalQ = function(cluster, expression) rep(TRUE, tracker$cores),
+    .ctgimme_register_worker_cluster = function(cluster) cluster,
+    .ctgimme_stop_worker_cluster = function(cluster) invisible(TRUE),
+    .package = "ctgimme"
+  )
+
+  expect_identical(tracker$cores, 4L)
+  expect_identical(cluster, fake_cluster)
 })
 
 test_that("the quick demo deterministically recovers two subgroups", {
@@ -340,19 +370,23 @@ test_that("the public workflow reuses and stops one worker cluster", {
   tracker$group.cluster <- NULL
   tracker$subgroup.cluster <- NULL
   worker_cluster <- structure(list(id = "persistent"), class = "mock_cluster")
-  subject_ids <- c("1", "2")
-  membership <- stats::setNames(c(1L, 1L), subject_ids)
+  subject_ids <- as.character(seq_len(4L))
+  membership <- stats::setNames(rep(1L, 4L), subject_ids)
 
   testthat::local_mocked_bindings(
     .ctgimme_validate_inputs = function(...) invisible(TRUE),
     .ctgimme_validate_subgroup_options = function(...) invisible(TRUE),
     .ctgimme_load_dependencies = function(...) invisible(TRUE),
     .ctgimme_prepare_context = function(...) {
-      list(directory = tempfile("ctgimme-pool-test-"), ids = subject_ids, cores = 2L)
+      list(
+        directory = tempfile("ctgimme-pool-test-"),
+        ids = subject_ids,
+        cores = 4L
+      )
     },
     .ctgimme_make_worker_cluster = function(cores) {
       tracker$created <- tracker$created + 1L
-      expect_identical(cores, 2L)
+      expect_identical(cores, 4L)
       worker_cluster
     },
     stopCluster = function(cluster) {
@@ -389,7 +423,7 @@ test_that("the public workflow reuses and stops one worker cluster", {
     id = "id",
     time = "time",
     directory = tempfile("ctgimme-pool-output-"),
-    cores = 2,
+    cores = 4,
     sub.sig.thrsh = 1
   ))
 
