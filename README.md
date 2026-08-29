@@ -6,7 +6,7 @@
 
 `ctgimme` estimates group-, subgroup-, and individual-level continuous-time
 dynamic networks from intensive longitudinal data using continuous-time
-subgrouping GIMME (C-TSGIMME). It combines continuous-time state-space models
+subgrouping GIMME (cts-GIMME). It combines continuous-time state-space models
 with iterative searches for temporal paths supported across the sample,
 shared within recovered membership groups, or specific to individual
 subjects.
