@@ -2,6 +2,7 @@
 
 [![R-CMD-check](https://github.com/JPark93/ctgimme/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/JPark93/ctgimme/actions/workflows/R-CMD-check.yaml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![](https://cranlogs.r-pkg.org/badges/ctgimme)](https://cran.r-project.org/package=ctgimme)
 
 `ctgimme` estimates group-, subgroup-, and individual-level continuous-time
 dynamic networks from intensive longitudinal data using continuous-time
